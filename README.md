@@ -168,6 +168,21 @@
   - [x] 子检查：`tools/check/byok-contracts/check-protocol-enums.js`
   - [x] 子检查：`tools/check/byok-contracts/check-augment-protocol-shapes.js`
 
+#### 2.11 LCE 登录接管 + 去 Augment 品牌（LCE-only Sign In / Rebrand）
+
+- [x] 禁用上游 Augment OAuth：Sign In 命令与侧边栏 sign-in 动作全部改为执行 `augment-byok.loginLCE`
+  - [x] patch 脚本：`tools/patch/patch-disable-augment-oauth.js`（两个入口 + 解除 `canRun()` 的 useOAuth 门槛）
+- [x] LCE 设备登录流程：`payload/extension/out/byok/runtime/lce/login.js`
+  - [x] 打开浏览器到 LCE 前端 `/api/auth/device?callback=<127.0.0.1 回调>`；前端未登录会先跳 `/login` 再回跳发 token
+  - [x] token 写入 BYOK `globalState`（`official.apiToken` + 默认 `completionUrl`）
+  - [x] 同步写上游 session secret（`augment.sessions`：`accessToken=token`、`tenantURL=relay 地址`），驱动上游 `isLoggedIn=true`、侧边栏从 Sign In 进入 chat；Sign Out 走上游 `removeSession` 自然回登录页
+  - [x] 登录成功后自动触发工作区索引（`runtime/lce/auto-index.js`）
+- [x] 去品牌（Augment → LCE）：
+  - [x] `package.json`：`tools/patch/patch-rebrand.js`（displayName/命令分类/视图标题等）
+  - [x] `extension.js`：`tools/patch/patch-rebrand-extension.js`（状态栏/提示/终端名等用户可见文案）
+  - [x] webview：`tools/patch/patch-rebrand-webview.js`（sign-in 字标 "augment code"、onboarding 文案等；marker `__augment_byok_webview_rebrand_v1`，参与 cache-bust）
+- [x] contracts：OAuth 替换 marker、`augment-byok.loginLCE` ≥2 处入口、无 `._oauthFlow.startFlow(` 残留、登录 URL 含 `/api/auth/device`、session 写入存在、webview 无 `"augment code"` 残留
+
 ### 3) 运行时开关与回滚（Runtime Toggle / Rollback）
 
 - [x] BYOK 运行时开关存储：`augment-byok.runtimeEnabled.v1`

@@ -1,6 +1,5 @@
 "use strict";
 
-const http = require("http");
 const { debug, info, warn } = require("../../infra/log");
 const { DEFAULT_SELF_TEST_TIMEOUT_MS } = require("../../infra/constants");
 const { normalizeString, normalizeRawToken } = require("../../infra/util");
@@ -11,8 +10,7 @@ const { fetchOfficialGetModels } = require("../../runtime/official/get-models");
 const { fetchProviderModels } = require("../../providers/models");
 const { renderConfigPanelHtml } = require("./html");
 const { exportConfigWithDialog, importConfigWithDialog, runIoWithUiErrorBoundary } = require("../config-io");
-const { DEFAULT_OFFICIAL_COMPLETION_URL } = require("../../config/official");
-const { triggerIndexNow } = require("../../runtime/lce/auto-index");
+const { loginLCE: runLceLogin } = require("../../runtime/lce/login");
 
 
 function post(panel, msg) {
@@ -139,57 +137,12 @@ function createHandlers({ vscode, ctx, cfgMgr, state, panel }) {
       postRender(panel, cfgMgr, state);
     },
     loginLCE: async () => {
-      let server = null;
-      let timeout = null;
       try {
-        const token = await new Promise((resolve, reject) => {
-          server = http.createServer((req, res) => {
-            const url = new URL(req.url, `http://localhost`);
-            const t = url.searchParams.get("token");
-            res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Access-Control-Allow-Origin": "*" });
-            if (t) {
-              res.end("<html><body><h2>登录成功，可以关闭此页面。</h2><script>window.close()</script></body></html>");
-              resolve(t);
-            } else {
-              res.end("<html><body><h2>未收到 Token，请重试。</h2></body></html>");
-            }
-          });
-          server.listen(0, "127.0.0.1", () => {
-            const port = server.address().port;
-            const callbackUrl = encodeURIComponent(`http://127.0.0.1:${port}/callback`);
-            const loginUrl = `https://513689.xyz/auth/device?callback=${callbackUrl}`;
-            info(`LCE login: opening browser, callback port=${port}`);
-            try {
-              vscode.env.openExternal(vscode.Uri.parse(loginUrl));
-            } catch (err) {
-              reject(new Error("无法打开浏览器: " + (err instanceof Error ? err.message : String(err))));
-            }
-          });
-          timeout = setTimeout(() => {
-            reject(new Error("登录超时（120 秒），请重试"));
-          }, 120000);
-        });
-
-        if (timeout) clearTimeout(timeout);
-        if (server) { try { server.close(); } catch {} }
-
-        const apiToken = normalizeRawToken(token);
-        if (!apiToken) {
-          post(panel, { type: "lceLoginFailed", error: "收到的 Token 无效" });
-          return;
-        }
-
-        const cfg = cfgMgr.get();
-        const updated = { ...cfg };
-        updated.official = { ...(updated.official || {}), apiToken, completionUrl: DEFAULT_OFFICIAL_COMPLETION_URL };
-        await cfgMgr.saveNow(updated, "lce_login");
+        await runLceLogin({ vscode, ctx, cfgMgr });
         info("LCE login: token saved");
         post(panel, { type: "lceLoginOk" });
         postRender(panel, cfgMgr, state);
-        triggerIndexNow();
       } catch (err) {
-        if (timeout) clearTimeout(timeout);
-        if (server) { try { server.close(); } catch {} }
         const m = err instanceof Error ? err.message : String(err);
         warn("LCE login failed:", m);
         post(panel, { type: "lceLoginFailed", error: m });

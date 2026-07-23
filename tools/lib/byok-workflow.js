@@ -22,6 +22,9 @@ const { patchWebviewHistorySummaryNode } = require("../patch/patch-webview-histo
 const { patchWebviewAssetCacheBust } = require("../patch/patch-webview-asset-cache-bust");
 const { guardNoAutoAuth } = require("../patch/guard-no-autoauth");
 const { patchDisableAugmentOAuth } = require("../patch/patch-disable-augment-oauth");
+const { patchRebrand } = require("../patch/patch-rebrand");
+const { patchRebrandExtension } = require("../patch/patch-rebrand-extension");
+const { patchRebrandWebview } = require("../patch/patch-rebrand-webview");
 
 function makeLogger(prefix) {
   const p = String(prefix || "").trim();
@@ -51,11 +54,17 @@ function applyByokPatches({ repoRoot, extensionDir, pkgPath, extJsPath, logPrefi
   log(`patch webview assets (history summary node slimming)`);
   patchWebviewHistorySummaryNode(extDir);
 
+  log(`rebrand webview assets (Augment → LCE)`);
+  patchRebrandWebview(extDir);
+
   log(`patch webview asset cache bust`);
   patchWebviewAssetCacheBust(extDir, { buildId });
 
   log(`patch package.json (commands)`);
   patchPackageJsonCommands(pkg);
+
+  log(`rebrand package.json (Augment → LCE)`);
+  patchRebrand(pkg);
 
   log(`patch entry bootstrap`);
   patchExtensionEntry(extJs);
@@ -92,6 +101,9 @@ function applyByokPatches({ repoRoot, extensionDir, pkgPath, extJsPath, logPrefi
 
   log(`disable upstream Augment OAuth (LCE-only login)`);
   patchDisableAugmentOAuth(extJs);
+
+  log(`rebrand extension.js (Augment → LCE)`);
+  patchRebrandExtension(extJs);
 
   log(`guard: no autoAuth`);
   guardNoAutoAuth(extJs);

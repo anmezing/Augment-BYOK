@@ -1,14 +1,12 @@
 "use strict";
 
-const http = require("http");
 const { info, warn } = require("../../infra/log");
-const { normalizeRawToken } = require("../../infra/util");
 const { ensureConfigManager, state, setRuntimeEnabled, CONFIG_SYNC_KEYS, RUNTIME_ENABLED_KEY } = require("../../config/state");
-const { DEFAULT_OFFICIAL_COMPLETION_URL } = require("../../config/official");
 const { openConfigPanel } = require("../../ui/config-panel");
 const { exportConfigWithDialog, importConfigWithDialog, runIoWithUiErrorBoundary } = require("../../ui/config-io");
 const { clearHistorySummaryCacheAll, setHistorySummaryStorage } = require("../../core/augment-history-summary/auto");
 const { startWatching, triggerIndexNow } = require("../lce/auto-index");
+const { loginLCE } = require("../lce/login");
 
 function install({ vscode, getActivate, setActivate }) {
   if (state.installed) return;
@@ -104,56 +102,10 @@ function registerCommandsOnce(vscode, ctx, cfgMgr) {
   });
 
   register("augment-byok.loginLCE", async () => {
-    let server = null;
-    let timeout = null;
     try {
-      const token = await new Promise((resolve, reject) => {
-        server = http.createServer((req, res) => {
-          const url = new URL(req.url, `http://localhost`);
-          const t = url.searchParams.get("token");
-          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Access-Control-Allow-Origin": "*" });
-          if (t) {
-            res.end("<html><body><h2>登录成功，可以关闭此页面。</h2><script>window.close()</script></body></html>");
-            resolve(t);
-          } else {
-            res.end("<html><body><h2>未收到 Token，请重试。</h2></body></html>");
-          }
-        });
-        server.listen(0, "127.0.0.1", () => {
-          const port = server.address().port;
-          const callbackUrl = encodeURIComponent(`http://127.0.0.1:${port}/callback`);
-          const loginUrl = `https://513689.xyz/auth/device?callback=${callbackUrl}`;
-          info(`LCE login: opening browser, callback port=${port}`);
-          try {
-            vscode.env.openExternal(vscode.Uri.parse(loginUrl));
-          } catch (err) {
-            reject(new Error("无法打开浏览器: " + (err instanceof Error ? err.message : String(err))));
-          }
-        });
-        timeout = setTimeout(() => {
-          reject(new Error("登录超时（120 秒），请重试"));
-        }, 120000);
-      });
-
-      if (timeout) clearTimeout(timeout);
-      if (server) { try { server.close(); } catch {} }
-
-      const apiToken = normalizeRawToken(token);
-      if (!apiToken) {
-        try { await vscode.window.showErrorMessage("LCE 登录失败：收到的 Token 无效"); } catch {}
-        return;
-      }
-
-      const cfg = cfgMgr.get();
-      const updated = { ...cfg };
-      updated.official = { ...(updated.official || {}), apiToken, completionUrl: DEFAULT_OFFICIAL_COMPLETION_URL };
-      await cfgMgr.saveNow(updated, "lce_login");
-      info("LCE login: token saved via command");
+      await loginLCE({ vscode, ctx, cfgMgr });
       try { await vscode.window.showInformationMessage("LCE 登录成功，API Token 已保存，正在索引工作区..."); } catch {}
-      triggerIndexNow();
     } catch (err) {
-      if (timeout) clearTimeout(timeout);
-      if (server) { try { server.close(); } catch {} }
       const m = err instanceof Error ? err.message : String(err);
       warn("LCE login failed:", m);
       try { await vscode.window.showErrorMessage(`LCE 登录失败: ${m}`); } catch {}

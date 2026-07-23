@@ -8,7 +8,7 @@ const { assertFileExists, assertContains, assertHasCommand, assertModelRegistryF
 const { assertCallApiShimSignatureContracts } = require("./check-callapi-shim");
 const { assertProtocolEnumsAligned } = require("./check-protocol-enums");
 const { assertAugmentProtocolShapes } = require("./check-augment-protocol-shapes");
-const { listExtensionClientContextAssets } = require("../../patch/webview-assets");
+const { listExtensionClientContextAssets, resolveWebviewAssetsDir } = require("../../patch/webview-assets");
 const { LLM_ENDPOINT_SPECS } = require("../../report/llm-endpoints-spec");
 const { endpointDetailsFromSource, sortedEndpointList } = require("../../lib/endpoint-analysis");
 const { extractUiEndpointCatalogFromSource } = require("../../lib/ui-endpoint-catalog");
@@ -115,6 +115,8 @@ function main(argv = process.argv) {
 
   const requiredRelFiles = [
     "out/byok/runtime/bootstrap/index.js",
+    "out/byok/runtime/lce/login.js",
+    "out/byok/runtime/lce/auto-index.js",
     "out/byok/runtime/official/get-models.js",
     "out/byok/runtime/official/common.js",
     "out/byok/runtime/official/codebase-retrieval.js",
@@ -235,6 +237,17 @@ function main(argv = process.argv) {
   assert(!extJs.includes("case \"/autoAuth\"") && !extJs.includes("handleAutoAuth"), "autoAuth guard failed (post-check)");
   ok("extension.js markers ok");
 
+  assertContains(extJs, "__augment_byok_oauth_replaced_v1", "upstream OAuth entry points replaced");
+  assertContains(extJs, "__byok_rebranded_v1", "extension.js rebranded (Augment → LCE)");
+  const loginLceHits = extJs.split("augment-byok.loginLCE").length - 1;
+  assert(loginLceHits >= 2, `extension.js expected >=2 augment-byok.loginLCE entry points, got ${loginLceHits}`);
+  assert(!extJs.includes("._oauthFlow.startFlow("), "upstream OAuth startFlow call site still present");
+  assert(pkg.displayName === "LCE Coding Agent", "package.json displayName not rebranded to LCE");
+  const lceLoginSrc = readText(path.join(extensionDir, "out", "byok", "runtime", "lce", "login.js"));
+  assertContains(lceLoginSrc, "/api/auth/device", "LCE device login URL must use /api/auth/device");
+  assertContains(lceLoginSrc, "augment.sessions", "LCE login must write upstream session secret");
+  ok("LCE login contracts ok");
+
   const webviewAssets = listExtensionClientContextAssets(extensionDir, "contracts");
   assert(webviewAssets.length > 0, "webview history summary asset missing");
   for (const assetPath of webviewAssets) {
@@ -250,6 +263,21 @@ function main(argv = process.argv) {
     );
   }
   ok(`webview history summary patch markers ok (${webviewAssets.length})`);
+
+  const webviewAssetsDir = resolveWebviewAssetsDir(extensionDir, "contracts");
+  const allWebviewAssetJs = fs
+    .readdirSync(webviewAssetsDir)
+    .filter((name) => name.endsWith(".js") && !name.endsWith(".js.map"))
+    .map((name) => path.join(webviewAssetsDir, name));
+  assert(
+    allWebviewAssetJs.some((p) => readText(p).includes("__augment_byok_webview_rebrand_v1")),
+    "webview rebrand marker missing"
+  );
+  assert(
+    !allWebviewAssetJs.some((p) => readText(p).includes('"augment code"')),
+    'webview sign-in wordmark still says "augment code"'
+  );
+  ok(`webview rebrand ok (${allWebviewAssetJs.length} assets scanned)`);
 
   assertCallApiShimSignatureContracts(extJs);
 

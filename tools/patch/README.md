@@ -20,6 +20,7 @@
 
 Webview：
 - `tools/patch/patch-webview-history-summary-node.js`
+- `tools/patch/patch-rebrand-webview.js`（用户可见文案 Augment → LCE，含 sign-in 字标）
 - `tools/patch/patch-webview-asset-cache-bust.js`
 
 `extension/out/extension.js`：
@@ -34,7 +35,10 @@ Webview：
 - `tools/patch/patch-tasklist-add-tasks-sanitize-empty-ids.js`
 - `tools/patch/patch-tasklist-add-tasks-errors.js`
 - `tools/patch/patch-tasklist-reorganize-noop-errors.js`
+- `tools/patch/patch-disable-augment-oauth.js`（Sign In 两个入口改为执行 `augment-byok.loginLCE`，并解除 canRun 的 useOAuth 门槛）
+- `tools/patch/patch-rebrand-extension.js`（extension.js 用户可见文案 Augment → LCE）
 
 Manifest / guard：
 - `tools/patch/patch-package-json-commands.js`
+- `tools/patch/patch-rebrand.js`（package.json displayName/命令分类等 Augment → LCE）
 - `tools/patch/guard-no-autoauth.js`

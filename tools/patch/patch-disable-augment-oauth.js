@@ -27,6 +27,13 @@ function patchDisableAugmentOAuth(extJsPath) {
   }
   src = src.replace(target2, lceCmd);
 
+  // Entry 3: patch canRun() so signIn command is not gated behind useOAuth
+  const target3 = "canRun(){return this._auth.useOAuth?this.commandID===Die.signOutCommandID?this._auth.isLoggedIn===!0:!this._auth.isLoggedIn:!1}";
+  if (!src.includes(target3)) {
+    throw new Error("patchDisableAugmentOAuth: canRun() useOAuth gate not found");
+  }
+  src = src.replace(target3, "canRun(){return this.commandID===Die.signOutCommandID?this._auth.isLoggedIn===!0:!0}");
+
   const markerInsert = `/* ${marker} */`;
   src = markerInsert + src;
   fs.writeFileSync(p, src, "utf8");
