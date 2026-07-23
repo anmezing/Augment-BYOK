@@ -11,15 +11,21 @@ function patchDisableAugmentOAuth(extJsPath) {
   const marker = "__augment_byok_oauth_replaced_v1";
   if (src.includes(marker)) return;
 
-  const target = "await this._oauthFlow.startFlow()";
-  if (!src.includes(target)) {
-    throw new Error("patchDisableAugmentOAuth: _oauthFlow.startFlow() not found in extension.js");
-  }
+  const lceCmd = 'require("vscode").commands.executeCommand("augment-byok.loginLCE")';
 
-  src = src.replace(
-    target,
-    'await require("vscode").commands.executeCommand("augment-byok.loginLCE")'
-  );
+  // Entry 1: Sign In command handler
+  const target1 = "await this._oauthFlow.startFlow()";
+  if (!src.includes(target1)) {
+    throw new Error("patchDisableAugmentOAuth: _oauthFlow.startFlow() [command] not found");
+  }
+  src = src.replace(target1, `await ${lceCmd}`);
+
+  // Entry 2: sidebar panel sign-in action
+  const target2 = "this._oauthFlow.startFlow(!1)";
+  if (!src.includes(target2)) {
+    throw new Error("patchDisableAugmentOAuth: _oauthFlow.startFlow(!1) [panel] not found");
+  }
+  src = src.replace(target2, lceCmd);
 
   const markerInsert = `/* ${marker} */`;
   src = markerInsert + src;
