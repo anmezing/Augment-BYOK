@@ -13,8 +13,6 @@ const { shouldRequestThinking, stripThinkingAndReasoningFromRequestDefaults } = 
 const { maybeSummarizeAndCompactAugmentChatRequest, deleteHistorySummaryCache } = require("../../../core/augment-history-summary/auto");
 const { mergeChatResponseMeta } = require("../../../core/chat-response-meta");
 const { maybeInjectOfficialCodebaseRetrieval } = require("../../official/codebase-retrieval");
-const { maybeInjectOfficialContextCanvas } = require("../../official/context-canvas");
-const { maybeInjectOfficialExternalSources } = require("../../official/external-sources");
 const { maybeHydrateAssetNodesFromUpstream } = require("../../upstream/assets");
 const { maybeHydrateCheckpointNodesFromUpstream } = require("../../upstream/checkpoints");
 const { maybeBuildDelegatedAugmentChatRequest } = require("../../upstream/official-chat-delegation");
@@ -214,12 +212,6 @@ async function prepareAugmentChatRequestForByok({
 
   await runStep("official codebase retrieval inject failed (ignored)", async () =>
     await maybeInjectOfficialCodebaseRetrieval({ req, timeoutMs, abortSignal, upstreamCompletionURL, upstreamApiToken })
-  );
-  await runStep("official context canvas inject failed (ignored)", async () =>
-    await maybeInjectOfficialContextCanvas({ req, timeoutMs, abortSignal, upstreamCompletionURL, upstreamApiToken })
-  );
-  await runStep("official external sources inject failed (ignored)", async () =>
-    await maybeInjectOfficialExternalSources({ req, timeoutMs, abortSignal, upstreamCompletionURL, upstreamApiToken })
   );
 
   try {
