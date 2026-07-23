@@ -60,15 +60,6 @@ const LLM_ENDPOINT_SPECS = [
     byokImpl: "prompt rewrite stream (BackChatResult)"
   },
   {
-    endpoint: "/next-edit-stream",
-    kind: "callApiStream",
-    meaning: "Next Edit 建议（stream）",
-    upstreamBackType: "BackNextEditGenerationResult (single event)",
-    inputKeys: ["model", "instruction", "prefix?", "selected_text?", "suffix?", "selection_begin_char?", "selection_end_char?", "path?", "blob_name?", "lang?", "blobs?", "recent_changes?", "diagnostics?", "blocked_locations?", "edit_events?", "mode?", "scope?", "api_version?", "sequence_id?"],
-    outputKeys: ["unknown_blob_names[]", "checkpoint_not_found", "next_edit{suggestion_id,path,blob_name,char_start,char_end,existing_code,suggested_code,...}"],
-    byokImpl: "provider.completeText -> BackNextEditGenerationResult(next_edit)"
-  },
-  {
     endpoint: "/generate-commit-message-stream",
     kind: "callApiStream",
     meaning: "Commit message（stream）",

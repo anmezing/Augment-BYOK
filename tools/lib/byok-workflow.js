@@ -21,6 +21,7 @@ const { patchPackageJsonCommands } = require("../patch/patch-package-json-comman
 const { patchWebviewHistorySummaryNode } = require("../patch/patch-webview-history-summary-node");
 const { patchWebviewAssetCacheBust } = require("../patch/patch-webview-asset-cache-bust");
 const { guardNoAutoAuth } = require("../patch/guard-no-autoauth");
+const { patchDisableAugmentOAuth } = require("../patch/patch-disable-augment-oauth");
 
 function makeLogger(prefix) {
   const p = String(prefix || "").trim();
@@ -88,6 +89,9 @@ function applyByokPatches({ repoRoot, extensionDir, pkgPath, extJsPath, logPrefi
 
   log(`patch tasklist tools (reorganize_tasklist no-op => error)`);
   patchTasklistReorganizeNoopErrors(extJs);
+
+  log(`disable upstream Augment OAuth (LCE-only login)`);
+  patchDisableAugmentOAuth(extJs);
 
   log(`guard: no autoAuth`);
   guardNoAutoAuth(extJs);

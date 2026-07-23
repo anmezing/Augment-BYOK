@@ -68,7 +68,6 @@
       "/prompt-enhancer": { "mode": "byok" },
       "/completion": { "mode": "byok" },
       "/chat-input-completion": { "mode": "byok" },
-      "/next-edit-stream": { "mode": "byok" },
       "/generate-commit-message-stream": { "mode": "byok" },
 
       "/client-metrics": { "mode": "disabled" },

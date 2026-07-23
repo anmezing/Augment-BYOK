@@ -117,8 +117,7 @@ async function handleNextEditStream({ cfg, route, ep, body, transform, timeoutMs
 const CALL_API_STREAM_HANDLERS = {
   "/chat-stream": handleChatStream,
   "/prompt-enhancer": handleChatResultDeltaStream,
-  "/generate-commit-message-stream": handleChatResultDeltaStream,
-  "/next-edit-stream": handleNextEditStream
+  "/generate-commit-message-stream": handleChatResultDeltaStream
 };
 
 const SUPPORTED_CALL_API_STREAM_ENDPOINTS = Object.freeze(Object.keys(CALL_API_STREAM_HANDLERS).sort());
