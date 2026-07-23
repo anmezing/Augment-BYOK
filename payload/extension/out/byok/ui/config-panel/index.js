@@ -12,6 +12,7 @@ const { fetchProviderModels } = require("../../providers/models");
 const { renderConfigPanelHtml } = require("./html");
 const { exportConfigWithDialog, importConfigWithDialog, runIoWithUiErrorBoundary } = require("../config-io");
 const { DEFAULT_OFFICIAL_COMPLETION_URL } = require("../../config/official");
+const { triggerIndexNow } = require("../../runtime/lce/auto-index");
 
 
 function post(panel, msg) {
@@ -185,6 +186,7 @@ function createHandlers({ vscode, ctx, cfgMgr, state, panel }) {
         info("LCE login: token saved");
         post(panel, { type: "lceLoginOk" });
         postRender(panel, cfgMgr, state);
+        triggerIndexNow();
       } catch (err) {
         if (timeout) clearTimeout(timeout);
         if (server) { try { server.close(); } catch {} }

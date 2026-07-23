@@ -8,6 +8,7 @@ const { DEFAULT_OFFICIAL_COMPLETION_URL } = require("../../config/official");
 const { openConfigPanel } = require("../../ui/config-panel");
 const { exportConfigWithDialog, importConfigWithDialog, runIoWithUiErrorBoundary } = require("../../ui/config-io");
 const { clearHistorySummaryCacheAll, setHistorySummaryStorage } = require("../../core/augment-history-summary/auto");
+const { startWatching, triggerIndexNow } = require("../lce/auto-index");
 
 function install({ vscode, getActivate, setActivate }) {
   if (state.installed) return;
@@ -52,6 +53,8 @@ function install({ vscode, getActivate, setActivate }) {
     }
 
     registerCommandsOnce(vscode, ctx, cfgMgr);
+    startWatching(vscode);
+    setTimeout(() => triggerIndexNow(), 3000);
     return await origActivate(ctx);
   });
 }
@@ -146,7 +149,8 @@ function registerCommandsOnce(vscode, ctx, cfgMgr) {
       updated.official = { ...(updated.official || {}), apiToken, completionUrl: DEFAULT_OFFICIAL_COMPLETION_URL };
       await cfgMgr.saveNow(updated, "lce_login");
       info("LCE login: token saved via command");
-      try { await vscode.window.showInformationMessage("LCE 登录成功，API Token 已保存"); } catch {}
+      try { await vscode.window.showInformationMessage("LCE 登录成功，API Token 已保存，正在索引工作区..."); } catch {}
+      triggerIndexNow();
     } catch (err) {
       if (timeout) clearTimeout(timeout);
       if (server) { try { server.close(); } catch {} }
