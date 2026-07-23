@@ -52,7 +52,7 @@ function warnOfficialContextSkippedOnce(feature, missing) {
   if (OFFICIAL_CONTEXT_SKIP_WARNED.has(key)) return;
   OFFICIAL_CONTEXT_SKIP_WARNED.add(key);
   warn(
-    `official context injection skipped: degraded=true feature=${f} missing=${m || "unknown"} network=skipped; BYOK chat continues without this official context. Configure official.completionUrl and official.apiToken (register: https://acemcp.heroman.wtf/login), or set disable_retrieval=true if this is intentional.`
+    `official context injection skipped: degraded=true feature=${f} missing=${m || "unknown"} network=skipped; BYOK chat continues without this official context. Configure official.completionUrl and official.apiToken (register: https://513689.xyz/login), or set disable_retrieval=true if this is intentional.`
   );
 }
 

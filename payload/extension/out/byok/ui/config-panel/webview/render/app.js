@@ -209,8 +209,8 @@
 	          <div class="form-grid">
 	            <div class="form-group">
 	              <label class="form-label" for="officialCompletionUrl">Completion URL</label>
-	              <input type="url" id="officialCompletionUrl" value="${escapeHtml(off.completionUrl ?? "")}" placeholder="https://acemcp.heroman.wtf/relay/" />
-	              <div class="text-muted text-xs">默认 <span class="text-mono">https://acemcp.heroman.wtf/relay/</span>；私有租户填你的域名。用于 <span class="text-mono">/get-models</span> 合并（以及官方链路请求）。</div>
+	              <input type="url" id="officialCompletionUrl" value="${escapeHtml(off.completionUrl ?? "")}" placeholder="https://513689.xyz/relay/" />
+	              <div class="text-muted text-xs">默认 <span class="text-mono">https://513689.xyz/relay/</span>；用于代码检索上下文注入。</div>
 	            </div>
 		            <div class="form-group">
 		              <div class="flex-between flex-row">
@@ -221,7 +221,11 @@
 	                <input type="password" id="officialApiToken" value="" placeholder="${off.apiToken ? "(set)" : "(empty)"}" />
 	                <button class="btn btn--icon btn--danger" data-action="clearOfficialToken" title="清空 Token">✕</button>
 		              </div>
-		              <div class="text-muted text-xs">请到 <span class="text-mono">https://acemcp.heroman.wtf/login</span> 自行注册并填写 API Token；不再内置或随机分配 key。留空=不改；点击 ✕=清空（保存后生效）。</div>
+		              <div class="text-muted text-xs">点击「登录 LCE」自动获取；或手动粘贴从控制台复制的 API Key。</div>
+		            </div>
+		            <div class="form-group">
+		              <button class="btn btn--primary" data-action="loginLCE" style="width:100%">登录 LCE</button>
+		              <div class="text-muted text-xs" style="margin-top:4px">在浏览器中登录 LCE 账号，自动获取并填充 API Token。</div>
 		            </div>
 		          </div>
 		        </div>

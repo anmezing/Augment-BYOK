@@ -6,7 +6,7 @@ function defaultConfig() {
   return {
     version: 1,
     official: {
-      completionUrl: "https://acemcp.heroman.wtf/relay/",
+      completionUrl: "https://513689.xyz/relay/",
       apiToken: ""
     },
     historySummary: {
