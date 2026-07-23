@@ -56,6 +56,7 @@ let vscodeRef = null;
 let indexingActive = false;
 let scanTimer = null;
 let fileWatcher = null;
+let gitHeadWatcher = null;
 let statusBarItem = null;
 
 function shouldExclude(path) {
@@ -245,11 +246,18 @@ function startWatching(vscode) {
   fileWatcher = vscode.workspace.createFileSystemWatcher("**/*");
   fileWatcher.onDidCreate(() => scheduleScan());
   fileWatcher.onDidDelete((uri) => onFileDeleted(uri));
+
+  gitHeadWatcher = vscode.workspace.createFileSystemWatcher("**/.git/HEAD");
+  gitHeadWatcher.onDidChange(() => {
+    info("LCE: branch switch detected, scheduling rescan");
+    scheduleScan();
+  });
 }
 
 function stopWatching() {
   if (scanTimer) { clearTimeout(scanTimer); scanTimer = null; }
   if (fileWatcher) { fileWatcher.dispose(); fileWatcher = null; }
+  if (gitHeadWatcher) { gitHeadWatcher.dispose(); gitHeadWatcher = null; }
   hideStatus();
 }
 
