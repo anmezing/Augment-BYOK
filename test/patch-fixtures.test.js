@@ -63,13 +63,49 @@ test("patchExtensionEntry: injects bootstrap and is idempotent", () => {
 
     const out1 = readUtf8(filePath);
     assert.ok(out1.includes(`require("./byok/runtime/bootstrap")`));
-    assert.ok(out1.includes("__augment_byok_bootstrap_injected_v1"));
-    assert.ok(out1.indexOf("__augment_byok_bootstrap_injected_v1") < out1.indexOf("\n//# sourceMappingURL="));
+    assert.ok(out1.includes("__augment_byok_bootstrap_injected_v2"));
+    assert.ok(out1.includes(";try{exports.activate=a}catch{}"));
+    assert.ok(out1.includes(";try{module.exports.activate=a}catch{}"));
+    assert.ok(out1.indexOf("__augment_byok_bootstrap_injected_v2") < out1.indexOf("\n//# sourceMappingURL="));
 
     const r2 = patchExtensionEntry(filePath);
     assert.equal(r2.changed, false);
     const out2 = readUtf8(filePath);
     assert.equal(out2, out1);
+  });
+});
+
+test("patchExtensionEntry: exports.activate resolves to wrapped activate (direct-assignment export style)", async () => {
+  await withTempDir("augment-byok-patch-", async (dir) => {
+    const filePath = path.join(dir, "extension.js");
+    // 0.890.3 风格：exports.activate=VAR 直接赋值（非 getter）——
+    // 只换局部变量不重绑导出时，VS Code 会拿到未包装的 activate
+    const src = [
+      `"use strict";`,
+      `let a=async(ctx)=>{return "orig-result";};`,
+      `exports.activate=a;`,
+      `//# sourceMappingURL=extension.js.map`
+    ].join("\n");
+    writeUtf8(filePath, src);
+    patchExtensionEntry(filePath);
+
+    const moduleStub = { exports: {} };
+    let wrapperRan = false;
+    const fakeBootstrap = {
+      install({ getActivate, setActivate }) {
+        const orig = getActivate();
+        setActivate(async (ctx) => {
+          wrapperRan = true;
+          return await orig(ctx);
+        });
+      }
+    };
+    const fakeRequire = (id) => (String(id).includes("byok/runtime/bootstrap") ? fakeBootstrap : {});
+    new Function("require", "module", "exports", readUtf8(filePath))(fakeRequire, moduleStub, moduleStub.exports);
+
+    const result = await moduleStub.exports.activate({});
+    assert.equal(wrapperRan, true, "VS Code-visible activate must be the bootstrap-wrapped one");
+    assert.equal(result, "orig-result");
   });
 });
 

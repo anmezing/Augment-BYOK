@@ -221,7 +221,11 @@ function main(argv = process.argv) {
   ok("package.json commands ok");
 
   const extJs = readText(extJsPath);
-  assertContains(extJs, "__augment_byok_bootstrap_injected_v1", "bootstrap injected");
+  assertContains(extJs, "__augment_byok_bootstrap_injected_v2", "bootstrap injected");
+  assert(
+    /;try\{exports\.activate=[A-Za-z0-9_$]+\}catch\{\}/.test(extJs),
+    "bootstrap wrapped activate not re-bound to exports (direct-assignment export style would bypass BYOK bootstrap)"
+  );
   assertContains(extJs, "__augment_byok_expose_upstream_v1", "expose upstream (toolsModel) injected");
   assertContains(extJs, "__augment_byok_upstream.officialChatDelegation", "expose upstream (official chat delegation) injected");
   assertContains(extJs, "__augment_byok_official_overrides_patched_v1", "official overrides patched");
