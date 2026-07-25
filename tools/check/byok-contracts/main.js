@@ -49,7 +49,7 @@ function hasStaleEndpointLiteral(src, endpoint) {
 }
 
 function assertNoStaleByokEndpointStrings(byokDir) {
-  const staleEndpoints = ["/edit", "/generate-conversation-title", "/next_edit_loc", "/instruction-stream", "/smart-paste-stream"];
+  const staleEndpoints = ["/edit", "/generate-conversation-title", "/next-edit-stream", "/next_edit_loc", "/instruction-stream", "/smart-paste-stream"];
   const hits = [];
   for (const filePath of listJsFilesRecursive(byokDir)) {
     const src = readText(filePath);
@@ -117,6 +117,10 @@ function main(argv = process.argv) {
     "out/byok/runtime/bootstrap/index.js",
     "out/byok/runtime/lce/login.js",
     "out/byok/runtime/lce/auto-index.js",
+    "out/byok/runtime/lce/session.js",
+    "out/byok/runtime/lce/runtime.js",
+    "out/byok/runtime/lce/mcp-tools.js",
+    "out/byok/runtime/device-identity.js",
     "out/byok/runtime/official/get-models.js",
     "out/byok/runtime/official/common.js",
     "out/byok/runtime/official/codebase-retrieval.js",
@@ -128,7 +132,6 @@ function main(argv = process.argv) {
     "out/byok/runtime/shim/byok-chat-stream/index.js",
     "out/byok/runtime/shim/byok-text/index.js",
     "out/byok/runtime/shim/route/index.js",
-    "out/byok/runtime/shim/next-edit/index.js",
     "out/byok/runtime/shim/common/index.js",
     "out/byok/runtime/shim/augment-chat/index.js",
     "out/byok/runtime/shim/text-assembly/index.js",
@@ -175,8 +178,6 @@ function main(argv = process.argv) {
     "out/byok/core/tool-pairing/openai.js",
     "out/byok/core/tool-pairing/openai-responses.js",
     "out/byok/core/tool-pairing/anthropic.js",
-    "out/byok/core/next-edit/fields.js",
-    "out/byok/core/next-edit/stream-utils.js",
     "out/byok/infra/constants.js",
     "out/byok/infra/util.js",
     "out/byok/infra/log.js",
@@ -228,6 +229,8 @@ function main(argv = process.argv) {
   );
   assertContains(extJs, "__augment_byok_expose_upstream_v1", "expose upstream (toolsModel) injected");
   assertContains(extJs, "__augment_byok_upstream.officialChatDelegation", "expose upstream (official chat delegation) injected");
+  assertContains(extJs, "__augment_byok_upstream.getToolsModel", "dynamic toolsModel getter injected");
+  assertContains(extJs, "__augment_byok_upstream.getMcpService", "dynamic MCP service getter injected");
   assertContains(extJs, "__augment_byok_official_overrides_patched_v1", "official overrides patched");
   assertContains(extJs, "__augment_byok_callapi_shim_patched_v1", "callApi shim patched");
   assertContains(extJs, "__augment_byok_model_picker_byok_only_v1", "model picker (BYOK-only) patched");
@@ -249,7 +252,10 @@ function main(argv = process.argv) {
   assert(pkg.displayName === "LCE Coding Agent", "package.json displayName not rebranded to LCE");
   const lceLoginSrc = readText(path.join(extensionDir, "out", "byok", "runtime", "lce", "login.js"));
   assertContains(lceLoginSrc, "/api/auth/device", "LCE device login URL must use /api/auth/device");
-  assertContains(lceLoginSrc, "augment.sessions", "LCE login must write upstream session secret");
+  assertContains(lceLoginSrc, "writeUpstreamSession", "LCE login must write upstream session secret");
+  assertContains(lceLoginSrc, "device_id", "LCE login must send device id for device binding");
+  const lceSessionSrc = readText(path.join(extensionDir, "out", "byok", "runtime", "lce", "session.js"));
+  assertContains(lceSessionSrc, "augment.sessions", "LCE session module must use upstream session secret key");
   ok("LCE login contracts ok");
 
   const webviewAssets = listExtensionClientContextAssets(extensionDir, "contracts");

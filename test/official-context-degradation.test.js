@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const http = require("node:http");
 
 const { state } = require("../payload/extension/out/byok/config/state");
+const { buildOpenAiMessages } = require("../payload/extension/out/byok/core/augment-chat/openai");
 const { resolveOfficialContextConnection } = require("../payload/extension/out/byok/runtime/official/common");
 const { maybeInjectOfficialCodebaseRetrieval } = require("../payload/extension/out/byok/runtime/official/codebase-retrieval");
 const { maybeInjectOfficialContextCanvas } = require("../payload/extension/out/byok/runtime/official/context-canvas");
@@ -136,6 +137,44 @@ test("official codebase retrieval: missing token skips before network path", asy
     assert.equal(result, false);
     assert.deepEqual(req.nodes, []);
   });
+});
+
+test("LCE codebase retrieval uses configured relay without legacy blobs and injects reranked context", async () => {
+  const upstream = await startCountingServer();
+  const relay = await startOfficialJsonServer(() => ({
+    formatted_retrieval: "LCE reranked context\nsrc/index.js:10-20"
+  }));
+  try {
+    await withOfficialConfig({ completionUrl: relay.baseUrl, apiToken: "lce-token" }, async () => {
+      const req = { message: "where is workspace indexing initialized?", nodes: [] };
+      const result = await maybeInjectOfficialCodebaseRetrieval({
+        req,
+        timeoutMs: 2000,
+        upstreamCompletionURL: upstream.baseUrl,
+        upstreamApiToken: "augment-token"
+      });
+
+      assert.equal(result, true);
+      assert.equal(upstream.getCount(), 0);
+      assert.equal(relay.requests.length, 1);
+      assert.equal(relay.requests[0].url, "/agents/codebase-retrieval");
+      assert.equal(relay.requests[0].authorization, "Bearer lce-token");
+      assert.equal(relay.requests[0].body.information_request, req.message);
+      assert.deepEqual(relay.requests[0].body.blobs, {
+        checkpoint_id: null,
+        added_blobs: [],
+        deleted_blobs: []
+      });
+      assert.equal(
+        req.nodes.some((node) => node?.text_node?.content === "LCE reranked context\nsrc/index.js:10-20"),
+        true
+      );
+      assert.match(JSON.stringify(buildOpenAiMessages(req)), /LCE reranked context/);
+    });
+  } finally {
+    await new Promise((resolve) => upstream.server.close(resolve));
+    await new Promise((resolve) => relay.server.close(resolve));
+  }
 });
 
 test("official context injection: disableRetrieval skips before degradation warning and network", async () => {

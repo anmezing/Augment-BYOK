@@ -5,6 +5,7 @@ const { normalizeString, normalizeStringList } = require("../../infra/util");
 const { truncateTextForPrompt: truncateText } = require("../../infra/text");
 const { joinBaseUrl, safeFetch } = require("../../providers/http");
 const { readHttpErrorDetail } = require("../../providers/request-util");
+const { applyClientIdHeader } = require("../device-identity");
 const { makeTextRequestNode, pickInjectionTargetArray, maybeInjectUserExtraTextParts, isOfficialContextDisabled, resolveOfficialContextConnection } = require("./common");
 
 async function fetchOfficialSearchExternalSources({ completionURL, apiToken, query, sourceTypes, timeoutMs, abortSignal }) {
@@ -12,6 +13,7 @@ async function fetchOfficialSearchExternalSources({ completionURL, apiToken, que
   if (!url) throw new Error("completionURL 无效（无法请求官方 search-external-sources）");
   const headers = { "content-type": "application/json" };
   if (apiToken) headers.authorization = `Bearer ${apiToken}`;
+  applyClientIdHeader(headers);
   const payload = { query: String(query || ""), source_types: Array.isArray(sourceTypes) ? sourceTypes : [] };
   const resp = await safeFetch(
     url,

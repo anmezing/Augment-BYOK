@@ -4,19 +4,25 @@ const http = require("http");
 const { info } = require("../../infra/log");
 const { normalizeRawToken } = require("../../infra/util");
 const { DEFAULT_OFFICIAL_COMPLETION_URL } = require("../../config/official");
-const { triggerIndexNow } = require("./auto-index");
+const { UPSTREAM_SESSION_SECRET_KEY, writeUpstreamSession } = require("./session");
+const { getDeviceIdentity } = require("../device-identity");
 
 const LCE_ORIGIN = new URL(DEFAULT_OFFICIAL_COMPLETION_URL).origin;
 // 前端设备登录端点是 Next.js API route：/api/auth/device（不是 /auth/device 页面）。
 const LCE_DEVICE_LOGIN_URL = `${LCE_ORIGIN}/api/auth/device`;
 
-// 上游 AuthSessionStore 读取的 SecretStorage key（extension.js 内 mC="augment.sessions"）。
-// 写入后上游 secrets.onDidChange -> onDidChangeSession -> isLoggedIn=true，
-// 侧边栏才会从 Sign In 界面进入 chat；signOut 走上游 removeSession 删除同一 key。
-// 注意：这不是 BYOK 配置源（配置仍只在 globalState），只是补齐上游登录态。
-const UPSTREAM_SESSION_SECRET_KEY = "augment.sessions";
-const UPSTREAM_SESSION_SCOPES = ["email"];
 const LOGIN_TIMEOUT_MS = 120000;
+
+// device_id/device_name 供前端注册设备（设备绑定，防账号共用）；
+// 缺省时前端按旧客户端兼容处理（不注册，relay log 模式放行）。
+function buildDeviceLoginUrl(callbackUrl) {
+  const url = new URL(LCE_DEVICE_LOGIN_URL);
+  url.searchParams.set("callback", callbackUrl);
+  const { clientId, clientName } = getDeviceIdentity();
+  if (clientId) url.searchParams.set("device_id", clientId);
+  if (clientName) url.searchParams.set("device_name", clientName);
+  return url.toString();
+}
 
 function waitForTokenViaBrowser(vscode) {
   let server = null;
@@ -50,8 +56,7 @@ function waitForTokenViaBrowser(vscode) {
     });
     server.listen(0, "127.0.0.1", () => {
       const port = server.address().port;
-      const callbackUrl = encodeURIComponent(`http://127.0.0.1:${port}/callback`);
-      const loginUrl = `${LCE_DEVICE_LOGIN_URL}?callback=${callbackUrl}`;
+      const loginUrl = buildDeviceLoginUrl(`http://127.0.0.1:${port}/callback`);
       info(`LCE login: opening browser, callback port=${port}`);
       try {
         vscode.env.openExternal(vscode.Uri.parse(loginUrl));
@@ -64,17 +69,6 @@ function waitForTokenViaBrowser(vscode) {
     }, LOGIN_TIMEOUT_MS);
   });
   return p.finally(cleanup);
-}
-
-async function writeUpstreamSession(ctx, apiToken) {
-  const secrets = ctx && ctx.secrets;
-  if (!secrets || typeof secrets.store !== "function") {
-    throw new Error("extension context secrets unavailable");
-  }
-  await secrets.store(
-    UPSTREAM_SESSION_SECRET_KEY,
-    JSON.stringify({ accessToken: apiToken, tenantURL: DEFAULT_OFFICIAL_COMPLETION_URL, scopes: UPSTREAM_SESSION_SCOPES })
-  );
 }
 
 async function loginLCE({ vscode, ctx, cfgMgr }) {
@@ -93,8 +87,7 @@ async function loginLCE({ vscode, ctx, cfgMgr }) {
 
   await writeUpstreamSession(ctx, apiToken);
   info("LCE login: token saved; upstream session written");
-  triggerIndexNow();
   return { apiToken };
 }
 
-module.exports = { loginLCE, LCE_DEVICE_LOGIN_URL, UPSTREAM_SESSION_SECRET_KEY };
+module.exports = { loginLCE, buildDeviceLoginUrl, LCE_DEVICE_LOGIN_URL, UPSTREAM_SESSION_SECRET_KEY };

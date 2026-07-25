@@ -240,6 +240,8 @@ test("patchExposeUpstream: captures AugmentExtension instance and is idempotent"
     assert.ok(out1.includes("__augment_byok_expose_upstream_v1"));
     assert.ok(out1.includes("globalThis.__augment_byok_upstream.augmentExtension=inst;"));
     assert.ok(out1.includes("globalThis.__augment_byok_upstream.officialChatDelegation=inst;"));
+    assert.ok(out1.includes("globalThis.__augment_byok_upstream.getToolsModel=()=>"));
+    assert.ok(out1.includes("globalThis.__augment_byok_upstream.getMcpService=()=>"));
 
     const r2 = patchExposeUpstream(filePath);
     assert.equal(r2.changed, false);

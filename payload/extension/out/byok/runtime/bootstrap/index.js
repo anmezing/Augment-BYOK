@@ -5,13 +5,19 @@ const { ensureConfigManager, state, setRuntimeEnabled, CONFIG_SYNC_KEYS, RUNTIME
 const { openConfigPanel } = require("../../ui/config-panel");
 const { exportConfigWithDialog, importConfigWithDialog, runIoWithUiErrorBoundary } = require("../../ui/config-io");
 const { clearHistorySummaryCacheAll, setHistorySummaryStorage } = require("../../core/augment-history-summary/auto");
-const { startWatching, triggerIndexNow } = require("../lce/auto-index");
 const { loginLCE } = require("../lce/login");
+const { startLceRuntime } = require("../lce/runtime");
+const { initDeviceIdentity } = require("../device-identity");
 
 function install({ vscode, getActivate, setActivate }) {
   if (state.installed) return;
   state.installed = true;
   state.vscode = vscode || null;
+  if (vscode) {
+    try {
+      initDeviceIdentity(vscode);
+    } catch {}
+  }
 
   if (!vscode || typeof getActivate !== "function" || typeof setActivate !== "function") {
     warn("bootstrap install missing hooks");
@@ -51,9 +57,14 @@ function install({ vscode, getActivate, setActivate }) {
     }
 
     registerCommandsOnce(vscode, ctx, cfgMgr);
-    startWatching(vscode);
-    setTimeout(() => triggerIndexNow(), 3000);
-    return await origActivate(ctx);
+    const activationResult = await origActivate(ctx);
+    try {
+      const lceRuntime = await startLceRuntime({ vscode, ctx });
+      if (lceRuntime && Array.isArray(ctx?.subscriptions)) ctx.subscriptions.push(lceRuntime);
+    } catch (err) {
+      warn("bootstrap: LCE runtime startup failed:", err instanceof Error ? err.message : String(err));
+    }
+    return activationResult;
   });
 }
 

@@ -160,9 +160,8 @@ test("runtime disabled: all BYOK-supported endpoints skip config/audit/upstream/
       }
 
       for (const endpoint of SUPPORTED_CALL_API_STREAM_ENDPOINTS) {
-        const body = endpoint === "/next-edit-stream" ? { ...byokBody, path: "/workspace/file.js" } : byokBody;
         const { result, calls } = await captureAudit(() =>
-          maybeHandleCallApiStream({ endpoint, body, timeoutMs: 1000, upstreamCallHost: callApiStreamHost })
+          maybeHandleCallApiStream({ endpoint, body: byokBody, timeoutMs: 1000, upstreamCallHost: callApiStreamHost })
         );
         assert.equal(result, undefined, endpoint);
         assert.deepEqual(calls, [], endpoint);
@@ -284,6 +283,23 @@ test("callApi boundary: byok model on unsupported endpoint stays official", asyn
   });
 });
 
+test("callApi boundary: LCE owns indexing and short-circuits upstream find-missing", async () => {
+  await withRuntimeState({ runtimeEnabled: true, cfg: makeUsableConfig() }, async () => {
+    const result = await maybeHandleCallApi({
+      endpoint: "https://example.invalid/find-missing?source=augment",
+      body: { mem_object_names: ["legacy"] },
+      transform: (value) => ({ wrapped: value }),
+      timeoutMs: 1000
+    });
+    assert.deepEqual(result, {
+      wrapped: {
+        unknown_memory_names: [],
+        nonindexed_blob_names: []
+      }
+    });
+  });
+});
+
 test("callApi boundary: unsupported endpoint rule=byok stays official", async () => {
   const cfg = makeUsableConfig();
   cfg.routing.rules["/new-upstream-json"] = { mode: "byok", providerId: "openai", model: "gpt-5.2" };
@@ -336,7 +352,7 @@ test("callApiStream boundary: byok model on unsupported endpoint stays official"
 
 test("callApiStream boundary: removed upstream endpoints stay official", async () => {
   await withRuntimeState({ runtimeEnabled: true, cfg: makeUsableConfig() }, async () => {
-    for (const endpoint of ["/instruction-stream", "/smart-paste-stream"]) {
+    for (const endpoint of ["/next-edit-stream", "/instruction-stream", "/smart-paste-stream"]) {
       const { result, calls } = await captureAudit(() =>
         maybeHandleCallApiStream({ endpoint, body: { model: "byok:openai:gpt-5.2" }, timeoutMs: 1000 })
       );

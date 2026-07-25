@@ -7,7 +7,7 @@
   const ENDPOINT_GROUPS_V1 = [
     {
       id: "llm_data_plane",
-      label: "LLM 数据面（8）",
+      label: "LLM 数据面（7）",
       endpoints: [
         /* BEGIN GENERATED: LLM_ENDPOINTS */
         "/get-models",

@@ -1,6 +1,6 @@
 # Augment-BYOK（请尽快 PR 合并，避免跟不上本仓库）
 
-单一 VSIX：把 Augment 的 **8 个 LLM 数据面端点**按路由转到 BYOK（支持 Streaming + tool use），其它端点保持官方行为；支持运行时一键回滚（无需 Rust/外部服务）。
+单一 VSIX：把 Augment 的 **7 个 LLM 数据面端点**按路由转到 BYOK（支持 Streaming + tool use），其它端点保持官方行为；支持运行时一键回滚（无需 Rust/外部服务）。
 
 默认 relay：`https://acemcp.heroman.wtf/relay/`。使用官方 `/get-models` 合并与官方上下文注入前，请先到 `https://acemcp.heroman.wtf/login` 自行注册并填写自己的 API Token；本项目不再内置或随机分配 key。
 
@@ -13,7 +13,7 @@
 
 1. 运行 `BYOK: Open Config Panel`
 2. 至少配置 1 个 `providers[]` → `Save`（Base URL 会按 type 自动填充默认值）
-3. 运行 `BYOK: Enable`（`runtimeEnabled=true` 才会接管 8 个端点）
+3. 运行 `BYOK: Enable`（`runtimeEnabled=true` 才会接管 7 个端点）
 4. 可选：在 Model Picker 选择 `byok:<providerId>:<modelId>`（由 `/get-models` 注入）
 
 配置存储：VS Code extension `globalState`（含 Key/Token；不参与 Sync）。字段与约束见本文“配置系统”与“routing.rules（端点路由规则）”；示例见 `config.example.json`。
@@ -35,14 +35,14 @@
 
 协议适配细节（工具/stop_reason/用量/兜底/常见网关差异）见本文“Provider 支持矩阵”。
 
-## 8 个端点（会被 BYOK shim 接管）
+## 7 个端点（会被 BYOK shim 接管）
 
 - `callApi`（4）：`/get-models`、`/chat`、`/completion`、`/chat-input-completion`
-- `callApiStream`（4）：`/chat-stream`、`/prompt-enhancer`、`/next-edit-stream`、`/generate-commit-message-stream`
+- `callApiStream`（3）：`/chat-stream`、`/prompt-enhancer`、`/generate-commit-message-stream`
 
-> 当前上游 `augment/vscode-augment@0.871.0` 已无 `/edit`、`/generate-conversation-title`、`/next_edit_loc`、`/instruction-stream` 与 `/smart-paste-stream`，因此默认 BYOK 覆盖矩阵同步收敛为 8 个端点。
+> 当前上游 `augment/vscode-augment@0.890.3` 已无 `/edit`、`/generate-conversation-title`、`/next-edit-stream`、`/next_edit_loc`、`/instruction-stream` 与 `/smart-paste-stream`，因此默认 BYOK 覆盖矩阵同步收敛为 7 个端点。
 
-完整端点范围（48/8）见本文“端点覆盖（48 / 8）与路由策略”。
+完整端点范围（47/7）见本文“端点覆盖（47 / 7）与路由策略”。
 
 ## 排障（高频）
 
@@ -68,7 +68,7 @@
 ### 0) 总体目标与边界（Scope / Non-goals）
 
 - [x] 单一 VSIX：所有能力都打包进一个 `*.vsix`，无需 Rust/外部代理服务
-- [x] 最小破坏面：只接管 **8 个 LLM 数据面端点**（其余端点维持 official 或按需 disabled）
+- [x] 最小破坏面：只接管 **7 个 LLM 数据面端点**（其余端点维持 official 或按需 disabled）
 - [x] 可回滚：运行时一键回滚（`runtimeEnabled=false` 即回到官方链路）
 - [x] 可审计：锁定上游版本与产物 sha256，并产出覆盖矩阵/端点全集报告
 - [x] fail-fast：上游升级导致 patch needle / 合约不满足时，构建直接失败（避免 silent break）
@@ -243,7 +243,7 @@
 #### 4.6 routing.rules（端点路由规则）
 
 - [x] 规则结构：`routing.rules[endpoint]={ mode, providerId?, model? }`
-- [x] `mode=byok`：走 BYOK（仅对 8 个 LLM 数据面端点提供语义实现）
+- [x] `mode=byok`：走 BYOK（仅对 7 个 LLM 数据面端点提供语义实现）
 - [x] `mode=official`：强制走官方（即使 runtimeEnabled=true 也不接管）
 - [x] `mode=disabled`：直接 no-op（callApi 返回 `{}`，callApiStream 返回空 stream）
 - [-] 规则合并：用户 rules 与默认 rules 合并；不建议手填未知端点（上游升级可能改变集合）
@@ -276,18 +276,18 @@
 - [x] 兜底：summary 生成失败/超时/未配置时，仍会注入 fallback summary 强制压缩（避免请求过大导致直接失败）
 - [x] 兜底：`end_part_full` 中的 `tool_result` / `tool_use input` 会中间截断（保留尾部引用 id），防止单个工具输出撑爆上下文
 
-### 5) 端点覆盖（48 / 8）与路由策略
+### 5) 端点覆盖（47 / 7）与路由策略
 
 #### 5.1 端点全集与覆盖矩阵
 
 - [x] 上游端点全集：`npm run upstream:analyze` → `.cache/reports/upstream-analysis.json`
 - [x] LLM 覆盖矩阵：`npm run report:coverage` → `dist/endpoint-coverage.report.md`
-- [x] 端点说明：本文“端点覆盖（48 / 8）与路由策略”
+- [x] 端点说明：本文“端点覆盖（47 / 7）与路由策略”
 
-#### 5.2 8 个 LLM 数据面端点（BYOK 语义实现）
+#### 5.2 7 个 LLM 数据面端点（BYOK 语义实现）
 
 - [x] `callApi`（4）：`/get-models`、`/chat`、`/completion`、`/chat-input-completion`
-- [x] `callApiStream`（4）：`/chat-stream`、`/prompt-enhancer`、`/next-edit-stream`、`/generate-commit-message-stream`
+- [x] `callApiStream`（3）：`/chat-stream`、`/prompt-enhancer`、`/generate-commit-message-stream`
 - [x] 单一真相维护：`tools/report/llm-endpoints-spec.js`
 - [x] 自动生成同步：`npm run gen:llm-endpoints`（更新 UI + 默认 routing rules + official delegation）
 - [x] shim 二次约束：未实现端点即使携带 `byok:*` model override，也保持 official，不进入 BYOK 执行路径
@@ -334,7 +334,7 @@
 
 - [x] 语义同 `/completion`（共用同一实现）
 
-### 7) callApiStream（流式）实现细目（4）
+### 7) callApiStream（流式）实现细目（3）
 
 #### 7.1 `/chat-stream`（NDJSON：Augment chat chunks）
 
@@ -348,7 +348,7 @@
 - [x] max tokens：未配置时自动推断注入；上游拒绝时自动缩小并重试（仅在未输出 chunk 时重试）
 - [x] 输出补充：`checkpoint_not_found` / `workspace_file_chunks`（仅首 chunk 注入一次）
 - [x] 流式安全网：`guardObjectStream()` 将异常转换为可读错误 chunk（避免 UI 卡死）
-- [x] 文本流包装器已收敛：`chat_result delta` / `instruction-like replacement` / `next-edit complete` 共用 trace label 与 stream wrapper helper；再往下的继续清理主要是样式级收益
+- [x] 文本流包装器已收敛：`chat_result delta` 共用 trace label 与 stream wrapper helper
 
 #### 7.2 `/prompt-enhancer`（流式：chat_result delta 包装）
 
@@ -359,13 +359,6 @@
 #### 7.3 `/generate-commit-message-stream`（流式：chat_result delta 包装）
 
 - [x] 语义同 `/prompt-enhancer`（同一实现）
-
-#### 7.4 `/next-edit-stream`（伪流式：一次性生成 next edit chunk）
-
-- [x] 若请求缺 prefix/suffix：自动从 workspace blob 补齐上下文（pathHint + blobNameHint）
-- [x] 调用 provider 非流式 complete：一次性生成 `suggestedCode`
-- [x] 输出结构：`makeBackNextEditGenerationChunk({ path, blobName, charStart, charEnd, existingCode, suggestedCode })`
-- [-] 当前实现为单 chunk（不做逐 token streaming），但保持 stream 接口兼容上游调用方式
 
 ### 8) Provider 支持矩阵（上游 LLM 兼容层）
 

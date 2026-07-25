@@ -1,268 +1,274 @@
 "use strict";
 
-const crypto = require("crypto");
-const { info, warn, debug } = require("../../infra/log");
-const { normalizeString, normalizeRawToken } = require("../../infra/util");
-const { getOfficialConnection } = require("../../config/official");
-const { safeFetch, joinBaseUrl } = require("../../providers/http");
+const { info, warn } = require("../../infra/log");
+const { buildWorkspaceManifest, readFileForIndex } = require("./index-workspace");
+const { completeIndexJob, createIndexJob, failIndexJob, uploadIndexBatch } = require("./index-relay");
 
 const INDEX_BATCH_SIZE = 20;
-const INDEX_BATCH_DELAY_MS = 500;
-const SCAN_DEBOUNCE_MS = 5000;
-const MAX_FILE_SIZE = 512 * 1024;
-const EXCLUDE_PATTERNS = [
-  /node_modules/,
-  /\.git\//,
-  /dist\//,
-  /build\//,
-  /\.next\//,
-  /__pycache__/,
-  /\.pyc$/,
-  /\.class$/,
-  /\.o$/,
-  /\.so$/,
-  /\.dll$/,
-  /\.exe$/,
-  /\.wasm$/,
-  /\.min\.js$/,
-  /\.min\.css$/,
-  /\.map$/,
-  /\.lock$/,
-  /package-lock\.json$/,
-  /yarn\.lock$/,
-  /pnpm-lock\.yaml$/,
-  /\.env/,
-  /\.pem$/,
-  /\.key$/,
-  /\.cert$/,
-  /\.png$/,
-  /\.jpg$/,
-  /\.jpeg$/,
-  /\.gif$/,
-  /\.ico$/,
-  /\.svg$/,
-  /\.woff/,
-  /\.ttf$/,
-  /\.eot$/,
-  /\.mp[34]$/,
-  /\.zip$/,
-  /\.tar/,
-  /\.gz$/,
-  /\.rar$/,
-  /\.pdf$/,
-];
+const INDEX_BATCH_DELAY_MS = 300;
+const SCAN_DEBOUNCE_MS = 1500;
+const INITIAL_SCAN_DELAY_MS = 3000;
 
 let vscodeRef = null;
 let indexingActive = false;
+let activePromise = null;
+let activeController = null;
+let rerunQueued = false;
 let scanTimer = null;
-let fileWatcher = null;
-let gitHeadWatcher = null;
+let initialTimer = null;
+let hideTimer = null;
+let watcherDisposable = null;
 let statusBarItem = null;
-
-function shouldExclude(path) {
-  const p = path.replace(/\\/g, "/");
-  return EXCLUDE_PATTERNS.some((re) => re.test(p));
-}
-
-function fileHash(content) {
-  return crypto.createHash("sha256").update(content).digest("hex").slice(0, 16);
-}
+let getConnectionRef = null;
 
 function getConnection() {
-  const { completionURL, apiToken } = getOfficialConnection();
-  if (!completionURL || !apiToken) return null;
-  return { completionURL, apiToken };
+  const connection = typeof getConnectionRef === "function" ? getConnectionRef() : null;
+  if (!connection || !connection.completionURL || !connection.apiToken) return null;
+  return connection;
 }
 
-async function callRelay(completionURL, apiToken, endpoint, body, timeoutMs) {
-  const url = joinBaseUrl(normalizeString(completionURL), endpoint);
-  if (!url) return null;
-  const headers = { "content-type": "application/json" };
-  if (apiToken) headers.authorization = `Bearer ${apiToken}`;
-  const resp = await safeFetch(
-    url,
-    { method: "POST", headers, body: JSON.stringify(body) },
-    { timeoutMs: timeoutMs || 30000, label: `lce/${endpoint}` }
-  );
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(`${endpoint} ${resp.status}: ${text.slice(0, 200)}`);
-  }
-  return await resp.json().catch(() => null);
-}
-
-function setStatus(text) {
-  if (statusBarItem) statusBarItem.text = text;
-}
-
-function showStatus() {
+function showStatus(text) {
   if (!statusBarItem && vscodeRef) {
     statusBarItem = vscodeRef.window.createStatusBarItem(vscodeRef.StatusBarAlignment.Left, 0);
     statusBarItem.show();
   }
+  if (statusBarItem) {
+    statusBarItem.text = text;
+    statusBarItem.tooltip = "LCE workspace indexing";
+  }
 }
 
 function hideStatus() {
+  if (hideTimer) {
+    clearTimeout(hideTimer);
+    hideTimer = null;
+  }
   if (statusBarItem) {
-    statusBarItem.hide();
     statusBarItem.dispose();
     statusBarItem = null;
   }
 }
 
-async function scanAndIndex() {
-  if (indexingActive) return;
-  const conn = getConnection();
-  if (!conn) return;
-
-  const vscode = vscodeRef;
-  if (!vscode) return;
-
-  const folders = vscode.workspace.workspaceFolders;
-  if (!folders || !folders.length) return;
-
-  indexingActive = true;
-  showStatus();
-  setStatus("$(sync~spin) LCE: 扫描文件...");
-
-  try {
-    const files = await vscode.workspace.findFiles("**/*", "{**/node_modules/**,**/.git/**,**/dist/**,**/build/**,**/.next/**,**/__pycache__/**}");
-    const candidates = [];
-    for (const uri of files) {
-      const rel = vscode.workspace.asRelativePath(uri, false);
-      if (shouldExclude(rel)) continue;
-      let stat;
-      try { stat = await vscode.workspace.fs.stat(uri); } catch { continue; }
-      if (stat.size > MAX_FILE_SIZE || stat.size === 0) continue;
-      candidates.push({ uri, path: rel, size: stat.size });
-    }
-
-    if (!candidates.length) {
-      setStatus("$(check) LCE: 无需索引");
-      setTimeout(hideStatus, 3000);
-      indexingActive = false;
-      return;
-    }
-
-    setStatus(`$(sync~spin) LCE: 检查 ${candidates.length} 个文件...`);
-
-    const fileEntries = [];
-    for (const c of candidates) {
-      let content;
-      try { content = await vscode.workspace.fs.readFile(c.uri); } catch { continue; }
-      const text = Buffer.from(content).toString("utf8");
-      const h = fileHash(text);
-      fileEntries.push({ path: c.path, hash: h, size: c.size, content: text, uri: c.uri });
-    }
-
-    const checkPayload = fileEntries.map((f) => ({ path: f.path, hash: f.hash, size: f.size }));
-    let missing;
-    try {
-      const resp = await callRelay(conn.completionURL, conn.apiToken, "find-missing", { files: checkPayload }, 30000);
-      missing = resp && Array.isArray(resp.missing) ? resp.missing : [];
-    } catch (err) {
-      warn("LCE auto-index find-missing failed:", err instanceof Error ? err.message : String(err));
-      setStatus("$(error) LCE: 索引检查失败");
-      setTimeout(hideStatus, 5000);
-      indexingActive = false;
-      return;
-    }
-
-    if (!missing.length) {
-      info(`LCE auto-index: all ${fileEntries.length} files up to date`);
-      setStatus("$(check) LCE: 索引已是最新");
-      setTimeout(hideStatus, 3000);
-      indexingActive = false;
-      return;
-    }
-
-    const missingSet = new Set(missing.map((m) => typeof m === "string" ? m : (m && m.path ? m.path : "")));
-    const toUpload = fileEntries.filter((f) => missingSet.has(f.path));
-
-    info(`LCE auto-index: ${toUpload.length} files to index`);
-    let indexed = 0;
-
-    for (let i = 0; i < toUpload.length; i += INDEX_BATCH_SIZE) {
-      const batch = toUpload.slice(i, i + INDEX_BATCH_SIZE);
-      const payload = batch.map((f) => ({ path: f.path, content: f.content, hash: f.hash }));
-      setStatus(`$(sync~spin) LCE: 索引中 ${indexed}/${toUpload.length}`);
-      try {
-        await callRelay(conn.completionURL, conn.apiToken, "remote-index", { files: payload }, 60000);
-        indexed += batch.length;
-      } catch (err) {
-        warn("LCE auto-index batch failed:", err instanceof Error ? err.message : String(err));
-      }
-      if (i + INDEX_BATCH_SIZE < toUpload.length) {
-        await new Promise((r) => setTimeout(r, INDEX_BATCH_DELAY_MS));
-      }
-    }
-
-    info(`LCE auto-index: indexed ${indexed}/${toUpload.length} files`);
-    setStatus(`$(check) LCE: 已索引 ${indexed} 个文件`);
-    setTimeout(hideStatus, 5000);
-  } catch (err) {
-    warn("LCE auto-index error:", err instanceof Error ? err.message : String(err));
-    setStatus("$(error) LCE: 索引出错");
-    setTimeout(hideStatus, 5000);
-  } finally {
-    indexingActive = false;
-  }
+function showFinalStatus(text, delayMs) {
+  showStatus(text);
+  if (hideTimer) clearTimeout(hideTimer);
+  hideTimer = setTimeout(hideStatus, delayMs || 5000);
 }
 
-function scheduleScan() {
-  if (scanTimer) clearTimeout(scanTimer);
-  scanTimer = setTimeout(() => {
-    scanTimer = null;
-    scanAndIndex().catch((err) => warn("LCE scan error:", err instanceof Error ? err.message : String(err)));
-  }, SCAN_DEBOUNCE_MS);
+function formatProgress(job) {
+  const totalFiles = Math.max(0, Number(job && job.totalFiles) || 0);
+  const indexedFiles = Math.max(0, Number(job && job.indexedFiles) || 0);
+  const percent = totalFiles ? Math.min(100, Math.floor(indexedFiles * 100 / totalFiles)) : 100;
+  const indexedChunks = Math.max(0, Number(job && job.indexedChunks) || 0);
+  const totalChunks = Math.max(indexedChunks, Number(job && job.totalChunks) || 0);
+  const approximate = job && job.chunkCountEstimated ? "~" : "";
+  return `${percent}% ${indexedFiles}/${totalFiles} files | ${approximate}${indexedChunks}/${approximate}${totalChunks} chunks`;
 }
 
-function onFileSaved(doc) {
-  if (!doc || !doc.uri) return;
-  const conn = getConnection();
-  if (!conn) return;
-  const rel = vscodeRef.workspace.asRelativePath(doc.uri, false);
-  if (shouldExclude(rel)) return;
-  const text = doc.getText();
-  if (!text || text.length > MAX_FILE_SIZE) return;
-  const h = fileHash(text);
-  debug(`LCE: file saved, indexing ${rel}`);
-  callRelay(conn.completionURL, conn.apiToken, "remote-index", {
-    files: [{ path: rel, content: text, hash: h }]
-  }, 30000).catch((err) => warn("LCE index on save failed:", err instanceof Error ? err.message : String(err)));
+function isAbortError(err) {
+  return Boolean(err && typeof err === "object" && err.name === "AbortError");
 }
 
-function onFileDeleted(uri) {
-  // Deletion triggers a full rescan to let the relay detect stale entries
-  scheduleScan();
-}
-
-function startWatching(vscode) {
-  if (fileWatcher) return;
-  vscodeRef = vscode;
-
-  vscode.workspace.onDidSaveTextDocument(onFileSaved);
-
-  fileWatcher = vscode.workspace.createFileSystemWatcher("**/*");
-  fileWatcher.onDidCreate(() => scheduleScan());
-  fileWatcher.onDidDelete((uri) => onFileDeleted(uri));
-
-  gitHeadWatcher = vscode.workspace.createFileSystemWatcher("**/.git/HEAD");
-  gitHeadWatcher.onDidChange(() => {
-    info("LCE: branch switch detected, scheduling rescan");
-    scheduleScan();
+function sleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    let onAbort = null;
+    const timer = setTimeout(() => {
+      if (signal && onAbort) signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    if (!signal) return;
+    onAbort = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", onAbort);
+      const error = new Error("Indexing aborted");
+      error.name = "AbortError";
+      reject(error);
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
   });
 }
 
+async function runIndexOnce() {
+  const connection = getConnection();
+  const vscode = vscodeRef;
+  if (!connection || !vscode) return null;
+  if (!vscode.workspace.workspaceFolders || !vscode.workspace.workspaceFolders.length) return null;
+
+  activeController = new AbortController();
+  const signal = activeController.signal;
+  let jobId = "";
+  try {
+    showStatus("$(sync~spin) LCE: scanning workspace...");
+    const manifest = await buildWorkspaceManifest(vscode, (done, total) => {
+      if (done === total || done % 100 === 0) {
+        showStatus(`$(sync~spin) LCE: scanning ${done}/${total} files`);
+      }
+    });
+    if (!manifest) return null;
+
+    showStatus(`$(sync~spin) LCE: comparing ${manifest.files.length} files...`);
+    const created = await createIndexJob(connection, manifest, signal);
+    let job = created && created.job;
+    jobId = job && job.id || "";
+    if (!jobId) throw new Error("relay did not return an index job id");
+
+    const byPath = new Map(manifest.files.map((file) => [file.path, file]));
+    const pendingPaths = Array.isArray(created.pendingFiles) ? created.pendingFiles : [];
+    const pending = pendingPaths.map((filePath) => byPath.get(filePath)).filter(Boolean);
+    if (pending.length !== pendingPaths.length) {
+      throw new Error("relay returned files outside the current workspace manifest");
+    }
+
+    showStatus(`$(sync~spin) LCE: ${formatProgress(job)}`);
+    if (pending.length === 0 && Number(job.deletedCount) > 0) {
+      const response = await uploadIndexBatch(connection, jobId, [], signal);
+      job = response.job || job;
+      showStatus(`$(sync~spin) LCE: ${formatProgress(job)}`);
+    }
+
+    for (let offset = 0; offset < pending.length; offset += INDEX_BATCH_SIZE) {
+      const batch = await Promise.all(
+        pending.slice(offset, offset + INDEX_BATCH_SIZE).map((file) => readFileForIndex(vscode, file))
+      );
+      const response = await uploadIndexBatch(connection, jobId, batch, signal);
+      job = response.job || job;
+      showStatus(`$(sync~spin) LCE: ${formatProgress(job)}`);
+      if (offset + INDEX_BATCH_SIZE < pending.length) {
+        await sleep(INDEX_BATCH_DELAY_MS, signal);
+      }
+    }
+
+    const completed = await completeIndexJob(connection, jobId, signal);
+    job = completed.job || job;
+    info(`LCE index completed: workspace=${manifest.workspaceId} mode=${job.mode} files=${job.indexedFiles} chunks=${job.indexedChunks}`);
+    if (Number(job.totalFiles) === 0 && Number(job.deletedCount) === 0) {
+      showFinalStatus("$(check) LCE: index is up to date", 3000);
+    } else {
+      showFinalStatus(`$(check) LCE: ${formatProgress(job)}`, 6000);
+    }
+    return job;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (jobId) {
+      try {
+        await failIndexJob(connection, jobId, message);
+      } catch (cleanupErr) {
+        warn("LCE index cleanup failed:", cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr));
+      }
+    }
+    if (!isAbortError(err)) {
+      warn("LCE auto-index failed:", message);
+      showFinalStatus("$(error) LCE: indexing failed", 6000);
+    }
+    throw err;
+  } finally {
+    activeController = null;
+  }
+}
+
+function scanAndIndex() {
+  if (indexingActive) {
+    rerunQueued = true;
+    return activePromise || Promise.resolve(null);
+  }
+  indexingActive = true;
+  activePromise = runIndexOnce()
+    .catch((err) => {
+      if (!isAbortError(err)) return null;
+      return null;
+    })
+    .finally(() => {
+      indexingActive = false;
+      activePromise = null;
+      if (rerunQueued && vscodeRef) {
+        rerunQueued = false;
+        setTimeout(() => scanAndIndex(), 0);
+      }
+    });
+  return activePromise;
+}
+
+function scheduleScan() {
+  if (indexingActive) {
+    rerunQueued = true;
+    return;
+  }
+  if (scanTimer) clearTimeout(scanTimer);
+  scanTimer = setTimeout(() => {
+    scanTimer = null;
+    scanAndIndex();
+  }, SCAN_DEBOUNCE_MS);
+}
+
+function isGitPath(uri) {
+  const value = String(uri && (uri.fsPath || uri.path) || "").replace(/\\/g, "/");
+  return /(^|\/)\.git(?:\/|$)/.test(value);
+}
+
+function startWatching(vscode, options) {
+  getConnectionRef = options && typeof options.getConnection === "function" ? options.getConnection : null;
+  if (!getConnection()) return null;
+  if (watcherDisposable) return watcherDisposable;
+  vscodeRef = vscode;
+  const disposables = [];
+  const registerWatcher = (glob, handler) => {
+    const watcher = vscode.workspace.createFileSystemWatcher(glob);
+    disposables.push(watcher);
+    disposables.push(watcher.onDidCreate(handler));
+    disposables.push(watcher.onDidChange(handler));
+    disposables.push(watcher.onDidDelete(handler));
+  };
+
+  disposables.push(vscode.workspace.onDidSaveTextDocument(() => scheduleScan()));
+  registerWatcher("**/*", (uri) => {
+    if (!isGitPath(uri)) scheduleScan();
+  });
+  registerWatcher("**/.git/HEAD", scheduleScan);
+  registerWatcher("**/.git/refs/**", scheduleScan);
+  registerWatcher("**/.git/packed-refs", scheduleScan);
+
+  watcherDisposable = {
+    _items: disposables,
+    dispose() {
+      stopWatching();
+    }
+  };
+  initialTimer = setTimeout(() => {
+    initialTimer = null;
+    scanAndIndex();
+  }, INITIAL_SCAN_DELAY_MS);
+  return watcherDisposable;
+}
+
 function stopWatching() {
-  if (scanTimer) { clearTimeout(scanTimer); scanTimer = null; }
-  if (fileWatcher) { fileWatcher.dispose(); fileWatcher = null; }
-  if (gitHeadWatcher) { gitHeadWatcher.dispose(); gitHeadWatcher = null; }
+  if (scanTimer) clearTimeout(scanTimer);
+  if (initialTimer) clearTimeout(initialTimer);
+  scanTimer = null;
+  initialTimer = null;
+  rerunQueued = false;
+  if (activeController) activeController.abort();
+  const disposable = watcherDisposable;
+  watcherDisposable = null;
+  if (disposable && Array.isArray(disposable._items)) {
+    for (const item of disposable._items) {
+      try { item.dispose(); } catch {}
+    }
+  }
   hideStatus();
+  getConnectionRef = null;
+  vscodeRef = null;
 }
 
 function triggerIndexNow() {
-  scanAndIndex().catch((err) => warn("LCE triggerIndex error:", err instanceof Error ? err.message : String(err)));
+  if (scanTimer) {
+    clearTimeout(scanTimer);
+    scanTimer = null;
+  }
+  if (initialTimer) {
+    clearTimeout(initialTimer);
+    initialTimer = null;
+  }
+  return scanAndIndex();
 }
 
-module.exports = { startWatching, stopWatching, triggerIndexNow, scanAndIndex };
+module.exports = { formatProgress, isGitPath, scanAndIndex, scheduleScan, startWatching, stopWatching, triggerIndexNow };

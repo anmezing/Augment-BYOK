@@ -5,6 +5,7 @@ const { normalizeString } = require("../../infra/util");
 const { truncateTextForPrompt: truncateText } = require("../../infra/text");
 const { joinBaseUrl, safeFetch } = require("../../providers/http");
 const { readHttpErrorDetail } = require("../../providers/request-util");
+const { applyClientIdHeader } = require("../device-identity");
 const { makeTextRequestNode, pickInjectionTargetArray, maybeInjectUserExtraTextParts, isOfficialContextDisabled, resolveOfficialContextConnection } = require("./common");
 
 const OFFICIAL_CONTEXT_CANVAS_TIMEOUT_MS = 4000;
@@ -16,6 +17,7 @@ async function fetchOfficialContextCanvasList({ completionURL, apiToken, pageSiz
   if (!url) throw new Error("completionURL 无效（无法请求官方 context-canvas/list）");
   const headers = { "content-type": "application/json" };
   if (apiToken) headers.authorization = `Bearer ${apiToken}`;
+  applyClientIdHeader(headers);
   const page_size = Number.isFinite(Number(pageSize)) && Number(pageSize) > 0 ? Math.floor(Number(pageSize)) : 100;
   const payload = { page_size, page_token: String(pageToken || "") };
   const resp = await safeFetch(

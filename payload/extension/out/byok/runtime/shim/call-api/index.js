@@ -2,7 +2,8 @@
 
 const { warn } = require("../../../infra/log");
 const { withTiming } = require("../../../infra/trace");
-const { normalizeString, normalizeRawToken, safeTransform, stripUpstreamProviderOverrideKeys } = require("../../../infra/util");
+const { normalizeEndpoint, normalizeString, normalizeRawToken, safeTransform, stripUpstreamProviderOverrideKeys } = require("../../../infra/util");
+const { state } = require("../../../config/state");
 const { getOfficialConnection } = require("../../../config/official");
 const { fetchOfficialGetModels } = require("../../official/get-models");
 const { normalizeUpstreamCompletionURL } = require("../../official/common");
@@ -122,6 +123,13 @@ const CALL_API_HANDLERS = {
 const SUPPORTED_CALL_API_ENDPOINTS = Object.freeze(Object.keys(CALL_API_HANDLERS).sort());
 
 async function maybeHandleCallApi({ endpoint, body, transform, timeoutMs, abortSignal, upstreamApiToken, upstreamCompletionURL, upstreamCallHost }) {
+  const normalizedEndpoint = normalizeEndpoint(endpoint);
+  if (state.runtimeEnabled && normalizedEndpoint === "/find-missing") {
+    return safeTransform(transform, {
+      unknown_memory_names: [],
+      nonindexed_blob_names: []
+    }, "lce-index-owned");
+  }
   const requestBody = stripUpstreamProviderOverrideKeys(body);
   const { requestId, ep, timeoutMs: t, cfg, route, runtimeEnabled } = await resolveByokRouteContext({
     endpoint,

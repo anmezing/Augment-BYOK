@@ -39,6 +39,14 @@ function assert(cond, msg) {
   if (!cond) die(msg);
 }
 
+function detectLineEnding(src) {
+  return String(src ?? "").includes("\r\n") ? "\r\n" : "\n";
+}
+
+function normalizeLineEndings(src, eol) {
+  return String(src ?? "").replace(/\r\n|\r|\n/g, eol);
+}
+
 function replaceBetweenMarkers(src, startMarker, endMarker, newInner) {
   const s = String(src ?? "");
   const start = s.indexOf(startMarker);
@@ -52,8 +60,9 @@ function replaceBetweenMarkers(src, startMarker, endMarker, newInner) {
   const afterStart = endLineStart >= 0 ? endLineStart + 1 : end;
   const after = s.slice(afterStart);
 
-  const inner = String(newInner ?? "").replace(/\s+$/g, "");
-  return `${before}\n${inner}\n${after}`;
+  const eol = detectLineEnding(s);
+  const inner = normalizeLineEndings(String(newInner ?? "").replace(/\s+$/g, ""), eol);
+  return `${before}${eol}${inner}${eol}${after}`;
 }
 
 function indentOfMarkerLine(src, marker) {

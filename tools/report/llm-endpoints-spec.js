@@ -1,6 +1,6 @@
 "use strict";
 
-// 单一真相：LLM 端点集合（8）+ 输入/输出形状摘要 + 上游期望 Back 类型
+// 单一真相：LLM 端点集合（7）+ 输入/输出形状摘要 + 上游期望 Back 类型
 // - 用于生成覆盖矩阵报告（markdown）
 // - 用于 CI fail-fast：上游若移除/新增/改变调用类型（callApi vs callApiStream）会直接失败
 

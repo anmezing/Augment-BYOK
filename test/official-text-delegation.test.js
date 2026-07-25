@@ -62,8 +62,7 @@ test("official-text-delegation: endpoint field-only bodies fail fast", async () 
     ["/completion", { prompt: "hello completion", suffix: "SUFFIX" }],
     ["/chat-input-completion", { prompt: "hello input" }],
     ["/prompt-enhancer", { message: "improve me" }],
-    ["/generate-commit-message-stream", { diff: "diff --git a/a b/a" }],
-    ["/next-edit-stream", { prefix: "const a = ", selected_text: "1", suffix: ";" }]
+    ["/generate-commit-message-stream", { diff: "diff --git a/a b/a" }]
   ]) {
     const res = await maybeBuildDelegatedTextPrompt({ endpoint, body });
     assert.equal(res.ok, false, endpoint);
@@ -82,7 +81,7 @@ test("official-text-delegation: chat endpoint is rejected (chat delegation handl
 });
 
 test("official-text-delegation: unsupported endpoint returns miss", async () => {
-  for (const endpoint of ["/unknown", "/edit", "/generate-conversation-title"]) {
+  for (const endpoint of ["/unknown", "/edit", "/generate-conversation-title", "/next-edit-stream"]) {
     const res = await maybeBuildDelegatedTextPrompt({
       endpoint,
       body: { message: "hello" }

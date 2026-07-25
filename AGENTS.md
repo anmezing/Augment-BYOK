@@ -117,12 +117,13 @@
 
 ### 端点与路由契约
 
-- BYOK 只实现 **8 个 LLM 数据面端点**，单一真相在 `tools/report/llm-endpoints-spec.js`：
+- BYOK 只实现 **7 个 LLM 数据面端点**，单一真相在 `tools/report/llm-endpoints-spec.js`：
   - `callApi`：`/get-models`、`/chat`、`/completion`、`/chat-input-completion`
-  - `callApiStream`：`/chat-stream`、`/prompt-enhancer`、`/next-edit-stream`、`/generate-commit-message-stream`
+  - `callApiStream`：`/chat-stream`、`/prompt-enhancer`、`/generate-commit-message-stream`
 - **已删除且禁止恢复**的旧端点字符串：
   - `/edit`
   - `/generate-conversation-title`
+  - `/next-edit-stream`
   - `/next_edit_loc`
   - `/instruction-stream`
   - `/smart-paste-stream`
@@ -300,7 +301,7 @@
 遇到以下情况先停，不要直接实现或“顺手修”：
 
 - 要变更以下公共契约之一：
-  - 8 个 LLM 端点集合
+  - 7 个 LLM 端点集合
   - `byok:<providerId>:<modelId>` 语义
   - `routing.rules[endpoint]` 结构
   - `augment-byok.*.v1` 存储 key

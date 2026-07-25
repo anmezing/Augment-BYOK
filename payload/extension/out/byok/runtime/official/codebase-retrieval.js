@@ -6,6 +6,7 @@ const augmentChatShared = require("../../core/augment-chat/shared");
 const { normalizeOfficialBlobsDiff } = require("../../core/blob-utils");
 const { joinBaseUrl, safeFetch } = require("../../providers/http");
 const { readHttpErrorDetail } = require("../../providers/request-util");
+const { applyClientIdHeader } = require("../device-identity");
 const { makeTextRequestNode, pickInjectionTargetArray, maybeInjectUserExtraTextParts, isOfficialContextDisabled, resolveOfficialContextConnection } = require("./common");
 
 const OFFICIAL_CODEBASE_RETRIEVAL_MAX_OUTPUT_LENGTH = 20000;
@@ -16,6 +17,7 @@ async function fetchOfficialCodebaseRetrieval({ completionURL, apiToken, informa
   if (!url) throw new Error("completionURL 无效（无法请求官方 agents/codebase-retrieval）");
   const headers = { "content-type": "application/json" };
   if (apiToken) headers.authorization = `Bearer ${apiToken}`;
+  applyClientIdHeader(headers);
   const max_output_length = Number.isFinite(Number(maxOutputLength)) && Number(maxOutputLength) > 0 ? Math.floor(Number(maxOutputLength)) : 20000;
   const basePayload = {
     information_request: String(informationRequest || ""),
@@ -65,14 +67,14 @@ function buildCodebaseRetrievalInformationRequest(req) {
   return parts.join("\n\n").trim();
 }
 
-async function maybeInjectOfficialCodebaseRetrieval({ req, timeoutMs, abortSignal, upstreamCompletionURL, upstreamApiToken }) {
+async function maybeInjectOfficialCodebaseRetrieval({ req, timeoutMs, abortSignal }) {
   if (!req || typeof req !== "object") return false;
   if (isOfficialContextDisabled(req)) return false;
 
   const info = buildCodebaseRetrievalInformationRequest(req);
   if (!normalizeString(info)) return false;
 
-  const conn = resolveOfficialContextConnection({ feature: "codebase-retrieval", upstreamCompletionURL, upstreamApiToken });
+  const conn = resolveOfficialContextConnection({ feature: "codebase-retrieval" });
   if (!conn) return false;
   const { completionURL, apiToken } = conn;
 
@@ -82,12 +84,6 @@ async function maybeInjectOfficialCodebaseRetrieval({ req, timeoutMs, abortSigna
   const baseBlobs = normalizeOfficialBlobsDiff(req.blobs) || { checkpoint_id: null, added_blobs: [], deleted_blobs: [] };
   const userGuidedBlobs = Array.isArray(req.user_guided_blobs) ? req.user_guided_blobs : [];
   const userGuidedBlobNames = userGuidedBlobs.map((b) => normalizeString(String(b ?? ""))).filter(Boolean);
-
-  const hasCheckpoint = Boolean(normalizeString(baseBlobs.checkpoint_id));
-  const hasAdded = Array.isArray(baseBlobs.added_blobs) && baseBlobs.added_blobs.length > 0;
-  const hasDeleted = Array.isArray(baseBlobs.deleted_blobs) && baseBlobs.deleted_blobs.length > 0;
-  const hasUserGuided = userGuidedBlobNames.length > 0;
-  if (!hasCheckpoint && !hasAdded && !hasDeleted && !hasUserGuided) return false;
 
   try {
     const added_blobs = [...new Set([...(Array.isArray(baseBlobs.added_blobs) ? baseBlobs.added_blobs : []), ...userGuidedBlobNames])].slice(0, 500);

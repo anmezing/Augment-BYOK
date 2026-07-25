@@ -22,6 +22,8 @@ function patchExposeUpstream(filePath) {
     `globalThis.__augment_byok_upstream.capturedAtMs=Date.now();` +
     `if(${varName}&&typeof ${varName}.callApi==="function")globalThis.__augment_byok_upstream.callApiOriginal=${varName}.callApi.bind(${varName});` +
     `if(${varName}&&typeof ${varName}.callApiStream==="function")globalThis.__augment_byok_upstream.callApiStreamOriginal=${varName}.callApiStream.bind(${varName});` +
+    `globalThis.__augment_byok_upstream.getToolsModel=()=>(${varName}&&(${varName}._toolsModel||${varName}.toolsModel||${varName}.tools_model));` +
+    `globalThis.__augment_byok_upstream.getMcpService=()=>{const __m=globalThis.__augment_byok_upstream.getToolsModel();return __m&&(__m._mcpService||__m.mcpService)};` +
     `const __tm=(${varName}&&(${varName}._toolsModel||${varName}.toolsModel||${varName}.tools_model));` +
     `if(__tm&&typeof __tm.getToolDefinitions==="function"&&typeof __tm.callTool==="function")globalThis.__augment_byok_upstream.toolsModel=__tm;` +
     `}catch{}`;
