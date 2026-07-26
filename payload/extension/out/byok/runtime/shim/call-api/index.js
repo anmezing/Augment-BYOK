@@ -123,6 +123,12 @@ const CALL_API_HANDLERS = {
 
 const SUPPORTED_CALL_API_ENDPOINTS = Object.freeze(Object.keys(CALL_API_HANDLERS).sort());
 
+function makeDisabledCallApiResponse(endpoint) {
+  if (endpoint === "/agents/list-remote-tools") return { tools: [] };
+  if (endpoint === "/notifications/read") return { notifications: [] };
+  return {};
+}
+
 async function maybeHandleCallApi({ endpoint, body, transform, timeoutMs, abortSignal, upstreamApiToken, upstreamCompletionURL, upstreamCallHost }) {
   const normalizedEndpoint = normalizeEndpoint(endpoint);
   if (state.runtimeEnabled && normalizedEndpoint === "/find-missing") {
@@ -144,10 +150,11 @@ async function maybeHandleCallApi({ endpoint, body, transform, timeoutMs, abortS
   rememberUpstreamCallHost(upstreamCallHost, { stream: false });
   if (route.mode === "official") return undefined;
   if (route.mode === "disabled") {
+    const response = makeDisabledCallApiResponse(ep);
     try {
-      return safeTransform(transform, {}, `disabled:${ep}`);
+      return safeTransform(transform, response, `disabled:${ep}`);
     } catch {
-      return {};
+      return response;
     }
   }
   if (route.mode !== "byok") return undefined;

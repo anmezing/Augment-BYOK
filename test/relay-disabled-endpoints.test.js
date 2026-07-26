@@ -31,6 +31,12 @@ test("Relay-disabled auxiliary endpoints return local no-op responses", async ()
   try {
     for (const endpoint of RELAY_DISABLED_AUXILIARY_ENDPOINTS) {
       const transformed = [];
+      const expectedRaw =
+        endpoint === "/agents/list-remote-tools"
+          ? { tools: [] }
+          : endpoint === "/notifications/read"
+            ? { notifications: [] }
+            : {};
       const { result, calls } = await captureAudit(() =>
         maybeHandleCallApi({
           endpoint,
@@ -43,11 +49,43 @@ test("Relay-disabled auxiliary endpoints return local no-op responses", async ()
         })
       );
 
-      assert.deepEqual(result, { localNoop: {} }, endpoint);
-      assert.deepEqual(transformed, [{}], endpoint);
+      assert.deepEqual(result, { localNoop: expectedRaw }, endpoint);
+      assert.deepEqual(transformed, [expectedRaw], endpoint);
       assert.equal(calls.length, 1, endpoint);
       assert.match(calls[0], /mode=disabled/, endpoint);
     }
+  } finally {
+    state.runtimeEnabled = previousEnabled;
+    state.configManager = previousConfigManager;
+  }
+});
+
+test("Relay-disabled list endpoints satisfy upstream array transforms", async () => {
+  const previousEnabled = state.runtimeEnabled;
+  const previousConfigManager = state.configManager;
+  const cfg = normalizeConfig({});
+  state.runtimeEnabled = true;
+  state.configManager = { get: () => cfg };
+
+  try {
+    const remoteTools = await maybeHandleCallApi({
+      endpoint: "/agents/list-remote-tools",
+      body: {},
+      transform: (value) => ({ tools: value.tools.map((tool) => tool) }),
+      timeoutMs: 1000
+    });
+    const notifications = await maybeHandleCallApi({
+      endpoint: "/notifications/read",
+      body: {},
+      transform: (value) => {
+        if (!Array.isArray(value.notifications)) throw new Error("notifications is not an array");
+        return { notifications: value.notifications.map((notification) => notification) };
+      },
+      timeoutMs: 1000
+    });
+
+    assert.deepEqual(remoteTools, { tools: [] });
+    assert.deepEqual(notifications, { notifications: [] });
   } finally {
     state.runtimeEnabled = previousEnabled;
     state.configManager = previousConfigManager;

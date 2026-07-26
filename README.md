@@ -245,7 +245,7 @@
 - [x] 规则结构：`routing.rules[endpoint]={ mode, providerId?, model? }`
 - [x] `mode=byok`：走 BYOK（仅对 7 个 LLM 数据面端点提供语义实现）
 - [x] `mode=official`：强制走官方（即使 runtimeEnabled=true 也不接管）
-- [x] `mode=disabled`：直接 no-op（callApi 返回 `{}`，callApiStream 返回空 stream）
+- [x] `mode=disabled`：直接 no-op（callApi 默认返回 `{}`，需要数组字段的端点返回协议兼容的空对象；callApiStream 返回空 stream）
 - [-] 规则合并：用户 rules 与默认 rules 合并；不建议手填未知端点（上游升级可能改变集合）
 
 #### 4.7 输出上限（max tokens 自动推断）
