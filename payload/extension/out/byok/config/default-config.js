@@ -2,6 +2,7 @@
 
 const { BUILTIN_CONTEXT_WINDOW_TOKENS_OVERRIDES } = require("../core/token-budget/context-window");
 const { DEFAULT_OFFICIAL_COMPLETION_URL } = require("./official-endpoint");
+const { RELAY_DISABLED_AUXILIARY_ENDPOINTS } = require("./relay-disabled-endpoints");
 
 function defaultConfig() {
   return {
@@ -79,12 +80,11 @@ function defaultConfig() {
 
         "/client-metrics": { mode: "disabled" },
         "/client-completion-timelines": { mode: "disabled" },
-        "/record-request-events": { mode: "official" },
         "/record-session-events": { mode: "disabled" },
         "/record-user-events": { mode: "disabled" },
-        "/report-error": { mode: "official" },
         "/resolve-completions": { mode: "disabled" },
-        "/resolve-edit": { mode: "disabled" }
+        "/resolve-edit": { mode: "disabled" },
+        ...Object.fromEntries(RELAY_DISABLED_AUXILIARY_ENDPOINTS.map((endpoint) => [endpoint, { mode: "disabled" }]))
       }
     }
   };

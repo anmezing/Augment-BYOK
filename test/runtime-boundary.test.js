@@ -270,13 +270,13 @@ test("callApiStream boundary: third_party_override is stripped before delegated 
 test("callApi boundary: byok model on unsupported endpoint stays official", async () => {
   await withRuntimeState({ runtimeEnabled: true, cfg: makeUsableConfig() }, async () => {
     const { result, calls } = await captureAudit(() =>
-      maybeHandleCallApi({ endpoint: "/record-request-events", body: { model: "byok:openai:gpt-5.2" }, timeoutMs: 1000 })
+      maybeHandleCallApi({ endpoint: "/new-upstream-json", body: { model: "byok:openai:gpt-5.2" }, timeoutMs: 1000 })
     );
 
     assert.equal(result, undefined);
     assert.equal(calls.length, 1);
     assert.match(calls[0], /\[callApi\]/);
-    assert.match(calls[0], /ep=\/record-request-events/);
+    assert.match(calls[0], /ep=\/new-upstream-json/);
     assert.match(calls[0], /mode=official/);
     assert.match(calls[0], /reason=unsupported_byok_endpoint/);
     assert.doesNotMatch(calls[0], /mode=byok/);

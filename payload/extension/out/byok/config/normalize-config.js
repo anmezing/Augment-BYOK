@@ -3,6 +3,7 @@
 const { warn } = require("../infra/log");
 const { normalizeEndpoint, normalizeString, normalizeStringList } = require("../infra/util");
 const { defaultConfig } = require("./default-config");
+const { RELAY_DISABLED_AUXILIARY_ENDPOINTS } = require("./relay-disabled-endpoints");
 
 const UNSAFE_JSON_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 
@@ -167,6 +168,9 @@ function normalizeConfig(raw) {
       if (!hadDefault && mode === "official" && !providerId && !model) continue;
       out.routing.rules[ep] = { mode, providerId, model };
     }
+  }
+  for (const endpoint of RELAY_DISABLED_AUXILIARY_ENDPOINTS) {
+    out.routing.rules[endpoint] = { mode: "disabled" };
   }
 
   const providers = raw.providers;

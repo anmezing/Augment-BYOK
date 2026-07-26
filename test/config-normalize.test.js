@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { normalizeConfig } = require("../payload/extension/out/byok/config/config");
+const { RELAY_DISABLED_AUXILIARY_ENDPOINTS } = require("../payload/extension/out/byok/config/relay-disabled-endpoints");
 
 test("normalizeConfig: strips prototype-pollution keys recursively", () => {
   const raw = JSON.parse(`{
@@ -69,6 +70,23 @@ test("normalizeConfig: routing.rules merges with defaults (and clears provider/m
 
   const cfg2 = normalizeConfig({ routing: { rules: {} } });
   assert.equal(cfg2.routing.rules["/chat"].mode, "byok");
+});
+
+test("normalizeConfig: Relay-unsupported auxiliary endpoints stay disabled", () => {
+  const cfg = normalizeConfig({
+    routing: {
+      rules: Object.fromEntries(
+        RELAY_DISABLED_AUXILIARY_ENDPOINTS.map((endpoint) => [
+          endpoint,
+          { mode: "official", providerId: "legacy-provider", model: "legacy-model" }
+        ])
+      )
+    }
+  });
+
+  for (const endpoint of RELAY_DISABLED_AUXILIARY_ENDPOINTS) {
+    assert.deepEqual(cfg.routing.rules[endpoint], { mode: "disabled" }, endpoint);
+  }
 });
 
 test("normalizeConfig: provider.models ignores non-string entries", () => {

@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { defaultConfig } = require("../payload/extension/out/byok/config/config");
+const { RELAY_DISABLED_AUXILIARY_ENDPOINTS } = require("../payload/extension/out/byok/config/relay-disabled-endpoints");
 const { decideRoute } = require("../payload/extension/out/byok/core/router");
 
 function enableOpenAi(cfg) {
@@ -78,6 +79,16 @@ test("decideRoute: disabled rule => disabled", () => {
   assert.equal(r.reason, "rule");
 });
 
+test("decideRoute: Relay-unsupported auxiliary endpoints default to disabled", () => {
+  const cfg = defaultConfig();
+  for (const endpoint of RELAY_DISABLED_AUXILIARY_ENDPOINTS) {
+    const r = decideRoute({ cfg, endpoint, body: {}, runtimeEnabled: true });
+    assert.equal(r.mode, "disabled", endpoint);
+    assert.equal(r.endpoint, endpoint);
+    assert.equal(r.reason, "rule");
+  }
+});
+
 test("decideRoute: disabled get-models rule beats model override", () => {
   const cfg = defaultConfig();
   cfg.routing.rules["/get-models"] = { mode: "disabled" };
@@ -89,9 +100,10 @@ test("decideRoute: disabled get-models rule beats model override", () => {
 
 test("decideRoute: model override forces byok when rule is official", () => {
   const cfg = enableOpenAi(defaultConfig());
-  const r = decideRoute({ cfg, endpoint: "/record-request-events", body: { model: "byok:openai:gpt-4o-mini" }, runtimeEnabled: true });
+  cfg.routing.rules["/custom-official-endpoint"] = { mode: "official" };
+  const r = decideRoute({ cfg, endpoint: "/custom-official-endpoint", body: { model: "byok:openai:gpt-4o-mini" }, runtimeEnabled: true });
   assert.equal(r.mode, "byok");
-  assert.equal(r.endpoint, "/record-request-events");
+  assert.equal(r.endpoint, "/custom-official-endpoint");
   assert.equal(r.reason, "model_override");
   assert.equal(r.provider.id, "openai");
   assert.equal(r.model, "gpt-4o-mini");

@@ -1,6 +1,6 @@
 # Augment-BYOK（请尽快 PR 合并，避免跟不上本仓库）
 
-单一 VSIX：把 Augment 的 **7 个 LLM 数据面端点**按路由转到 BYOK（支持 Streaming + tool use），其它端点保持官方行为；支持运行时一键回滚（无需 Rust/外部服务）。
+单一 VSIX：把 Augment 的 **7 个 LLM 数据面端点**按路由转到 BYOK（支持 Streaming + tool use）；Relay 不支持的辅助端点在本地 no-op，其它端点保持官方行为；支持运行时一键回滚（无需 Rust/外部服务）。
 
 默认 relay：`https://513689.xyz/relay/`。使用官方 `/get-models` 合并与官方上下文注入前，请先到 `https://513689.xyz/login` 自行注册并填写自己的 API Token；本项目不再内置或随机分配 key。
 
@@ -68,14 +68,14 @@
 ### 0) 总体目标与边界（Scope / Non-goals）
 
 - [x] 单一 VSIX：所有能力都打包进一个 `*.vsix`，无需 Rust/外部代理服务
-- [x] 最小破坏面：只接管 **7 个 LLM 数据面端点**（其余端点维持 official 或按需 disabled）
+- [x] 最小破坏面：只接管 **7 个 LLM 数据面端点**；Relay 不支持的 Remote Agents、订阅提示、通知与遥测上报端点固定 disabled，其余端点维持 official
 - [x] 可回滚：运行时一键回滚（`runtimeEnabled=false` 即回到官方链路）
 - [x] 可审计：锁定上游版本与产物 sha256，并产出覆盖矩阵/端点全集报告
 - [x] fail-fast：上游升级导致 patch needle / 合约不满足时，构建直接失败（避免 silent break）
 - [x] 不依赖 `augment.advanced.*` settings：构建期移除贡献点 + 运行时不读取/不写入
 - [x] 配置来源单一：只用 VS Code extension `globalState`（含 Key/Token，不参与 Sync）
 - [x] 运行时开关单独存储并参与 Sync：仅 `augment-byok.runtimeEnabled.v1` 加入 Sync，方便“跨设备一键回滚”
-- [ ] 非目标：复刻控制面/权限/Secrets/遥测/Remote Agents（保持官方实现；必要时可用 `disabled` 兜底）
+- [ ] 非目标：复刻控制面/权限/Secrets/遥测/Remote Agents（Relay 未实现的相关辅助端点固定 `disabled`）
 - [ ] 非目标：autoAuth（构建期 guard 明确禁止；命中直接 fail-fast）
 - [ ] 非目标：引入 env/yaml/SecretStorage 作为配置源（避免多源漂移与审计难度）
 
