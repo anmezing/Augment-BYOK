@@ -190,6 +190,7 @@ async function buildWorkspaceManifest(vscode, onProgress) {
   }
 
   const files = [];
+  const unreadableFiles = [];
   let fileReadFailures = 0;
   let visited = 0;
 
@@ -207,6 +208,7 @@ async function buildWorkspaceManifest(vscode, onProgress) {
       stat = await vscode.workspace.fs.stat(uri);
     } catch {
       stats.statFailures += 1;
+      unreadableFiles.push(relativePath);
       continue;
     }
     if (!stat || stat.size <= 0) {
@@ -224,6 +226,7 @@ async function buildWorkspaceManifest(vscode, onProgress) {
     } catch {
       stats.readFailures += 1;
       fileReadFailures += 1;
+      unreadableFiles.push(relativePath);
       continue;
     }
     if (!raw.length) {
@@ -247,7 +250,8 @@ async function buildWorkspaceManifest(vscode, onProgress) {
   if (files.length === 0 && stats.statFailures + fileReadFailures > 0) {
     throw new Error(`LCE workspace scan failed: no files could be indexed (${formatScanStats(stats)})`);
   }
-  return { ...identity, ...git, files, scanStats: stats };
+  unreadableFiles.sort((a, b) => a.localeCompare(b));
+  return { ...identity, ...git, files, unreadableFiles, scanStats: stats };
 }
 
 async function readFileForIndex(vscode, file) {

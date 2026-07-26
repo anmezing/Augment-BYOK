@@ -19,6 +19,7 @@ const { patchTasklistAddTasksErrors } = require("../patch/patch-tasklist-add-tas
 const { patchTasklistReorganizeNoopErrors } = require("../patch/patch-tasklist-reorganize-noop-errors");
 const { patchPackageJsonCommands } = require("../patch/patch-package-json-commands");
 const { patchWebviewHistorySummaryNode } = require("../patch/patch-webview-history-summary-node");
+const { patchWebviewDisableSidecarTelemetry } = require("../patch/patch-webview-disable-sidecar-telemetry");
 const { patchWebviewAssetCacheBust } = require("../patch/patch-webview-asset-cache-bust");
 const { guardNoAutoAuth } = require("../patch/guard-no-autoauth");
 const { patchDisableAugmentOAuth } = require("../patch/patch-disable-augment-oauth");
@@ -54,6 +55,9 @@ function applyByokPatches({ repoRoot, extensionDir, pkgPath, extJsPath, logPrefi
 
   log(`patch webview assets (history summary node slimming)`);
   patchWebviewHistorySummaryNode(extDir);
+
+  log(`patch webview assets (disable sidecar telemetry senders)`);
+  patchWebviewDisableSidecarTelemetry(extDir);
 
   log(`rebrand webview assets (Augment → LCE)`);
   patchRebrandWebview(extDir);

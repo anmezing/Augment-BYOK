@@ -80,7 +80,12 @@ function decideRoute({ cfg, endpoint, body, runtimeEnabled }) {
   } catch {
     parsed = null;
   }
-  if (mode === "official" && !parsed) return { mode, endpoint: ep, reason: "rule" };
+  // 未配置规则的端点默认协议安全放空：relay 只实现少数端点，默认打过去会
+  // 401/404，上游会把鉴权失败当会话过期清掉登录（threads 菜单登出事故）。
+  // 显式配置 mode=official 的规则仍然放行（真官方后端的逃生舱）。
+  if (mode === "official" && !parsed) {
+    return rule ? { mode, endpoint: ep, reason: "rule" } : { mode: "disabled", endpoint: ep, reason: "unrouted" };
+  }
   if (mode !== "byok" && !parsed) return { mode: "official", endpoint: ep, reason: "unknown_mode" };
   if (ep === "/get-models") {
     return {

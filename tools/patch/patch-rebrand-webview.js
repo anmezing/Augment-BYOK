@@ -13,6 +13,10 @@ const JS_REPLACEMENTS = [
   // Sign-in 界面 logo 下的字标
   ['"augment code"', '"LCE"'],
 
+  // Chat 输入框占位符
+  ["Instruct Augment, @ for context, / for commands", "Instruct LCE, @ for context, / for commands"],
+  ["Ask or Instruct Augment", "Ask or Instruct LCE"],
+
   // Onboarding / 目录选择 / 索引授权界面
   ["Welcome to Augment!", "Welcome to LCE!"],
   ["Augment Features", "LCE Features"],

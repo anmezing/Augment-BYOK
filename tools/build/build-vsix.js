@@ -32,21 +32,6 @@ function sanitizeBuildId(value, now = new Date()) {
   return cleaned || defaultBuildId(now);
 }
 
-function computeByokPackageVersion(upstreamVersion, { buildId, now } = {}) {
-  const base = String(upstreamVersion || "").trim() || "0.0.0";
-  return `${base}-byok.${sanitizeBuildId(buildId, now)}`;
-}
-
-function stampByokPackageVersion(pkgPath, { upstreamVersion, buildId, now } = {}) {
-  const pkg = readJson(pkgPath);
-  if (!pkg || typeof pkg !== "object") throw new Error(`invalid package.json: ${pkgPath}`);
-  const version = computeByokPackageVersion(upstreamVersion || pkg.version, { buildId, now });
-  if (pkg.version !== version) {
-    pkg.version = version;
-    writeJson(pkgPath, pkg);
-  }
-  return { version };
-}
 
 async function main() {
   const repoRoot = path.resolve(__dirname, "../..");
@@ -83,10 +68,12 @@ async function main() {
     buildId
   });
 
-  const { version: byokVersion } = stampByokPackageVersion(pkgPath, { upstreamVersion, buildId });
+  // 版本盖章发生在 applyByokPatches（patch-rebrand）里，这里只读结果
+  const byokVersion = String(readJson(pkgPath)?.version || "");
+  if (!/^9\d*\.\d+\.\d+$/.test(byokVersion)) throw new Error(`unexpected byok package version: ${byokVersion}`);
   runByokContractChecks({ repoRoot, extensionDir, extJsPath, pkgPath, logPrefix: "build" });
 
-  const outName = `augment.vscode-augment.${byokVersion}.vsix`;
+  const outName = `lce.lce-coding-agent.${byokVersion}-byok.${buildId}.vsix`;
   const outPath = path.join(distDir, outName);
   console.log(`[build] repack VSIX -> ${path.relative(repoRoot, outPath)}`);
   runPython([path.join(repoRoot, "tools", "lib", "zip-dir.py"), "--src", workDir, "--out", outPath], { cwd: repoRoot });
@@ -114,10 +101,8 @@ async function main() {
 }
 
 module.exports = {
-  computeByokPackageVersion,
   defaultBuildId,
-  sanitizeBuildId,
-  stampByokPackageVersion
+  sanitizeBuildId
 };
 
 if (require.main === module) {

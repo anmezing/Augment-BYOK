@@ -8,7 +8,11 @@ const { assertFileExists, assertContains, assertHasCommand, assertModelRegistryF
 const { assertCallApiShimSignatureContracts } = require("./check-callapi-shim");
 const { assertProtocolEnumsAligned } = require("./check-protocol-enums");
 const { assertAugmentProtocolShapes } = require("./check-augment-protocol-shapes");
-const { listExtensionClientContextAssets, resolveWebviewAssetsDir } = require("../../patch/webview-assets");
+const {
+  listExtensionClientContextAssets,
+  listSidecarTelemetryAssets,
+  resolveWebviewAssetsDir
+} = require("../../patch/webview-assets");
 const { LLM_ENDPOINT_SPECS } = require("../../report/llm-endpoints-spec");
 const { endpointDetailsFromSource, sortedEndpointList } = require("../../lib/endpoint-analysis");
 const { extractUiEndpointCatalogFromSource } = require("../../lib/ui-endpoint-catalog");
@@ -268,6 +272,10 @@ function main(argv = process.argv) {
   assert(loginLceHits >= 2, `extension.js expected >=2 augment-byok.loginLCE entry points, got ${loginLceHits}`);
   assert(!extJs.includes("._oauthFlow.startFlow("), "upstream OAuth startFlow call site still present");
   assert(pkg.displayName === "LCE Coding Agent", "package.json displayName not rebranded to LCE");
+  assert(pkg.publisher === "lce" && pkg.name === "lce-coding-agent", "package.json identity must be detached from Augment marketplace");
+  assert(/^9\d*\.\d+\.\d+$/.test(String(pkg.version || "")), `package.json version must use the 9-prefix scheme, got: ${pkg.version}`);
+  assertContains(extJs, "lce.lce-coding-agent/augment-kb-icon-font.woff", "kb icon font rebound to new extension id");
+  assert(!extJs.includes('he.extensions.getExtension("augment.vscode-augment")'), "extension self-lookup still targets Augment id");
   const lceLoginSrc = readText(path.join(extensionDir, "out", "byok", "runtime", "lce", "login.js"));
   assertContains(lceLoginSrc, "/api/auth/device", "LCE device login URL must use /api/auth/device");
   assertContains(lceLoginSrc, "writeUpstreamSession", "LCE login must write upstream session secret");
@@ -291,6 +299,16 @@ function main(argv = process.argv) {
     );
   }
   ok(`webview history summary patch markers ok (${webviewAssets.length})`);
+
+  const telemetryAssets = listSidecarTelemetryAssets(extensionDir, "contracts");
+  assert(telemetryAssets.length > 0, "webview sidecar telemetry asset missing");
+  for (const assetPath of telemetryAssets) {
+    const telemetrySrc = readText(assetPath);
+    assertContains(telemetrySrc, "__augment_byok_webview_sidecar_telemetry_off_v1", "webview sidecar telemetry silenced");
+    assert(!/\.sendToSidecar\(\{type:\w+\.trackAnalyticsEvent,/.test(telemetrySrc), `analytics sender still posts to sidecar: ${assetPath}`);
+    assert(!/\.sendToSidecar\(\{type:\w+\.trackExperimentViewedEvent,/.test(telemetrySrc), `experiment sender still posts to sidecar: ${assetPath}`);
+  }
+  ok(`webview sidecar telemetry patch markers ok (${telemetryAssets.length})`);
 
   const webviewAssetsDir = resolveWebviewAssetsDir(extensionDir, "contracts");
   const allWebviewAssetJs = fs

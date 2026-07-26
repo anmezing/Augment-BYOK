@@ -40,7 +40,7 @@
       return;
     }
     if (t === "render") {
-      setUiState({ cfg: msg.config || {}, runtimeEnabled: msg.runtimeEnabled === true, clearOfficialToken: false, modal: null, dirty: false }, { preserveEdits: false });
+      setUiState({ cfg: msg.config || {}, runtimeEnabled: msg.runtimeEnabled === true, modal: null, dirty: false }, { preserveEdits: false });
       return;
     }
     if (t === "providerModelsFetched") {
@@ -83,23 +83,6 @@
       const prev = getSelfTestState();
       return setUiState({ selfTest: { ...prev, running: false }, status: "Self Test canceled." }, { preserveEdits: true });
     }
-    if (t === "officialGetModelsOk") {
-      const modelsCount = Number.isFinite(Number(msg?.modelsCount)) ? Number(msg.modelsCount) : 0;
-      const defaultModel = normalizeStr(msg?.defaultModel);
-      const featureFlagsCount = Number.isFinite(Number(msg?.featureFlagsCount)) ? Number(msg.featureFlagsCount) : 0;
-      const elapsedMs = Number.isFinite(Number(msg?.elapsedMs)) ? Math.max(0, Math.floor(Number(msg.elapsedMs))) : 0;
-      const parts = [`models=${modelsCount}`];
-      if (defaultModel) parts.push(`default=${defaultModel}`);
-      if (featureFlagsCount) parts.push(`flags=${featureFlagsCount}`);
-      if (elapsedMs) parts.push(`${elapsedMs}ms`);
-      const text = parts.join(" ");
-      return setUiState({ status: "Official /get-models OK.", officialTest: { running: false, ok: true, text } }, { preserveEdits: true });
-    }
-    if (t === "officialGetModelsFailed") {
-      let err = normalizeStr(msg?.error) || "Official /get-models failed.";
-      err = err.replace(/^Official\s+\/get-models\s+failed:\s*/i, "");
-      return setUiState({ status: "Official /get-models failed.", officialTest: { running: false, ok: false, text: err } }, { preserveEdits: true });
-    }
   }
 
   window.addEventListener("message", (ev) => handleMessage(ev.data));
@@ -124,7 +107,6 @@
       }
       return;
     }
-    if (a === "clearOfficialToken") return setUiState({ clearOfficialToken: true, status: "Official token cleared (pending save).", dirty: true }, { preserveEdits: true });
     if (a === "fetchProviderModels") {
       const idx = btn && typeof btn.getAttribute === "function" ? Number(btn.getAttribute("data-idx")) : NaN;
       const cfg = gatherConfigFromDom();
@@ -134,11 +116,6 @@
       const requestId = newRequestId("fetchModels");
       postToExtension({ type: "fetchProviderModels", requestId, idx, provider: p });
       return setUiState({ status: `Fetching models... (Provider #${idx + 1})` }, { preserveEdits: true });
-    }
-    if (a === "testOfficialGetModels") {
-      const requestId = newRequestId("officialGetModels");
-      postToExtension({ type: "testOfficialGetModels", requestId, config: gatherConfigFromDom() });
-      return setUiState({ status: "Testing Official /get-models...", officialTest: { running: true, ok: null, text: "" } }, { preserveEdits: true });
     }
     if (a === "runSelfTest") {
       const requestId = newRequestId("selfTest");

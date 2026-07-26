@@ -1,6 +1,7 @@
 "use strict";
 
 const { loadPatchJson, savePatchJson } = require("./patch-target");
+const { computeByokPackageVersion } = require("../lib/byok-version");
 
 const BRAND = "LCE";
 
@@ -23,11 +24,21 @@ function patchRebrand(pkgPath) {
   const pkg = loadPatchJson(pkgPath);
   if (!pkg || typeof pkg !== "object") throw new Error("patchRebrand: package.json not object");
 
+  // 脱离 Augment 的市场身份：ID 变为 lce.lce-coding-agent 后，VS Code 不再把本
+  // 扩展与市场上的 Augment.vscode-augment 关联，也就不存在"更新"提示/覆盖安装。
+  // 注意：扩展 ID 变化意味着 globalState/secrets 全部换仓，老安装需要重新登录并
+  // 通过配置面板导出/导入迁移配置（聊天记录无法迁移）。
+  pkg.name = "lce-coding-agent";
+  pkg.publisher = "lce";
+  pkg.version = computeByokPackageVersion(pkg.version);
   pkg.displayName = "LCE Coding Agent";
   pkg.description = "LCE is an AI coding agent for VS Code, powered by your own API keys.";
 
   const c = pkg.contributes;
-  if (!c || typeof c !== "object") return;
+  if (!c || typeof c !== "object") {
+    savePatchJson(pkgPath, pkg);
+    return;
+  }
 
   // commands: category + title
   const cmds = Array.isArray(c.commands) ? c.commands : [];
@@ -61,32 +72,38 @@ function patchRebrand(pkgPath) {
     }
   }
 
-  // configuration title
+  // configuration：递归重写设置树的 description / enumDescriptions / enum 值。
+  // enum 值 "Augment" 必须跟随（patch-rebrand-extension 已把 terminal strategy
+  // 的代码判断改为 "LCE"，enum 不同步会让该策略永远匹配不上）。
+  const rebrandSettingNode = (node) => {
+    if (!node || typeof node !== "object") return;
+    if (typeof node.description === "string") {
+      node.description = node.description.replace(/\bAugment\b/g, BRAND);
+    }
+    if (Array.isArray(node.enumDescriptions)) {
+      node.enumDescriptions = node.enumDescriptions.map((d) =>
+        typeof d === "string" ? d.replace(/\bAugment\b/g, BRAND) : d
+      );
+    }
+    if (Array.isArray(node.enum)) {
+      node.enum = node.enum.map((d) => (d === "Augment" ? BRAND : d));
+    }
+    if (node.properties && typeof node.properties === "object") {
+      for (const sub of Object.values(node.properties)) rebrandSettingNode(sub);
+    }
+  };
   const conf = c.configuration;
   const blocks = Array.isArray(conf) ? conf : conf && typeof conf === "object" ? [conf] : [];
   for (const b of blocks) {
     if (b && b.title === "Augment") b.title = BRAND;
-    // Rebrand description strings in settings
-    const props = b && typeof b === "object" ? b.properties : null;
-    if (!props || typeof props !== "object") continue;
-    for (const v of Object.values(props)) {
-      if (!v || typeof v !== "object") continue;
-      if (typeof v.description === "string") {
-        v.description = v.description.replace(/\bAugment\b/g, BRAND);
-      }
-      // enum descriptions
-      if (Array.isArray(v.enumDescriptions)) {
-        v.enumDescriptions = v.enumDescriptions.map(d =>
-          typeof d === "string" ? d.replace(/\bAugment\b/g, BRAND) : d
-        );
-      }
-      // nested properties (e.g. augment.advanced)
-      if (v.properties && typeof v.properties === "object") {
-        for (const sub of Object.values(v.properties)) {
-          if (sub && typeof sub === "object" && typeof sub.description === "string") {
-            sub.description = sub.description.replace(/\bAugment\b/g, BRAND);
-          }
-        }
+    rebrandSettingNode(b);
+  }
+
+  // icons：图标描述（icon picker 中可见）
+  if (c.icons && typeof c.icons === "object") {
+    for (const icon of Object.values(c.icons)) {
+      if (icon && typeof icon === "object" && typeof icon.description === "string") {
+        icon.description = icon.description.replace(/\bAugment\b/g, BRAND);
       }
     }
   }

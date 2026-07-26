@@ -148,3 +148,18 @@ test("normalizeConfig: drops legacy officialDelegation block", () => {
 
   assert.equal(Object.prototype.hasOwnProperty.call(cfg, "officialDelegation"), false);
 });
+
+test("normalizeConfig: replaces retired relay hosts with the current default endpoint", () => {
+  const { DEFAULT_OFFICIAL_COMPLETION_URL } = require("../payload/extension/out/byok/config/official-endpoint");
+
+  const migrated = normalizeConfig({
+    official: { completionUrl: "https://acemcp.heroman.wtf/relay/", apiToken: "token-1" }
+  });
+  assert.equal(migrated.official.completionUrl, DEFAULT_OFFICIAL_COMPLETION_URL);
+  assert.equal(migrated.official.apiToken, "token-1");
+
+  const custom = normalizeConfig({
+    official: { completionUrl: "https://private.example/relay/" }
+  });
+  assert.equal(custom.official.completionUrl, "https://private.example/relay/");
+});

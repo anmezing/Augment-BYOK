@@ -2,12 +2,10 @@
 
 const { debug, info, warn } = require("../../infra/log");
 const { DEFAULT_SELF_TEST_TIMEOUT_MS } = require("../../infra/constants");
-const { normalizeString, normalizeRawToken } = require("../../infra/util");
+const { normalizeString } = require("../../infra/util");
 const { setRuntimeEnabled: setRuntimeEnabledPersisted } = require("../../config/state");
-const { DEFAULT_OFFICIAL_COMPLETION_URL } = require("../../config/official");
 const { clearHistorySummaryCacheAll } = require("../../core/augment-history-summary/auto");
 const { runSelfTest } = require("../../core/self-test/run");
-const { fetchOfficialGetModels } = require("../../runtime/official/get-models");
 const { fetchProviderModels } = require("../../providers/models");
 const { renderConfigPanelHtml } = require("./html");
 const { exportConfigWithDialog, importConfigWithDialog, runIoWithUiErrorBoundary } = require("../config-io");
@@ -159,42 +157,6 @@ function createHandlers({ vscode, ctx, cfgMgr, state, panel }) {
         const m = err instanceof Error ? err.message : String(err);
         warn("fetchProviderModels failed:", requestId ? { idx, requestId, error: m } : m);
         post(panel, { type: "providerModelsFailed", idx, ...(requestId ? { requestId } : {}), error: `Fetch models failed: ${m}` });
-      }
-    },
-    testOfficialGetModels: async (msg) => {
-      const requestId = normalizeString(msg?.requestId);
-      const cfg = msg && typeof msg === "object" && msg.config && typeof msg.config === "object" ? msg.config : cfgMgr.get();
-      const off = cfg?.official && typeof cfg.official === "object" ? cfg.official : {};
-      const completionUrl = normalizeString(off.completionUrl) || DEFAULT_OFFICIAL_COMPLETION_URL;
-      const apiToken = normalizeRawToken(off.apiToken);
-
-      try {
-        if (!apiToken) {
-          throw new Error("当前没有可用的 LCE API Token，请先完成插件登录或手动填写并保存");
-        }
-        const startedAtMs = Date.now();
-        const json = await fetchOfficialGetModels({ completionURL: completionUrl, apiToken, timeoutMs: 12000 });
-
-        const defaultModel = normalizeString(json.default_model ?? json.defaultModel);
-        const modelsCount = Array.isArray(json.models) ? json.models.length : 0;
-        const featureFlagsCount =
-          json.feature_flags && typeof json.feature_flags === "object" && !Array.isArray(json.feature_flags) ? Object.keys(json.feature_flags).length : 0;
-
-        const elapsedMs = Date.now() - startedAtMs;
-        if (requestId) debug("panel testOfficialGetModels OK", { requestId, modelsCount, featureFlagsCount, elapsedMs });
-
-        post(panel, {
-          type: "officialGetModelsOk",
-          ...(requestId ? { requestId } : {}),
-          modelsCount,
-          defaultModel,
-          featureFlagsCount,
-          elapsedMs
-        });
-      } catch (err) {
-        const m = err instanceof Error ? err.message : String(err);
-        warn("testOfficialGetModels failed:", requestId ? { requestId, error: m } : m);
-        post(panel, { type: "officialGetModelsFailed", ...(requestId ? { requestId } : {}), error: `Official /get-models failed: ${m}` });
       }
     },
     cancelSelfTest: async () => {

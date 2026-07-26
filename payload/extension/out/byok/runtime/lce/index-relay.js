@@ -42,7 +42,9 @@ function createIndexJob(connection, manifest, abortSignal) {
     workspaceName: manifest.workspaceName,
     branch: manifest.branch,
     revision: manifest.revision,
-    files: manifest.files.map(({ path, hash, size, estimatedChunks }) => ({ path, hash, size, estimatedChunks }))
+    files: manifest.files.map(({ path, hash, size, estimatedChunks }) => ({ path, hash, size, estimatedChunks })),
+    // 读不了的文件单独上报：relay 会保留它们的旧索引，而不是当成已删除
+    unreadableFiles: Array.isArray(manifest.unreadableFiles) ? manifest.unreadableFiles : []
   }, { timeoutMs: 60000, abortSignal });
 }
 

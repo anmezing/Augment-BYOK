@@ -33,4 +33,29 @@ function listExtensionClientContextAssets(extensionDir, callerName) {
   return candidates;
 }
 
-module.exports = { HISTORY_SUMMARY_NODE_PATCH_MARKER, listExtensionClientContextAssets, resolveWebviewAssetsDir };
+const SIDECAR_TELEMETRY_PATCH_MARKER = "__augment_byok_webview_sidecar_telemetry_off_v1";
+
+function listSidecarTelemetryAssets(extensionDir, callerName) {
+  const assetsDir = resolveWebviewAssetsDir(extensionDir, callerName);
+  const candidates = fs
+    .readdirSync(assetsDir)
+    .filter((name) => typeof name === "string" && name.endsWith(".js") && !name.endsWith(".js.map"))
+    .sort()
+    .map((name) => path.join(assetsDir, name))
+    .filter((filePath) => {
+      const src = fs.readFileSync(filePath, "utf8");
+      if (src.includes(SIDECAR_TELEMETRY_PATCH_MARKER)) return true;
+      return src.includes("trackAnalyticsEvent,data:{eventName:");
+    });
+
+  if (!candidates.length) throw new Error("webview sidecar telemetry sender asset not found (upstream may have changed)");
+  return candidates;
+}
+
+module.exports = {
+  HISTORY_SUMMARY_NODE_PATCH_MARKER,
+  SIDECAR_TELEMETRY_PATCH_MARKER,
+  listExtensionClientContextAssets,
+  listSidecarTelemetryAssets,
+  resolveWebviewAssetsDir
+};

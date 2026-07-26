@@ -165,6 +165,18 @@ function patchRebrandExtension(extJsPath) {
     // .zshrc comment
     ['file created by Augment', 'file created by LCE'],
 
+    // Sentry DSN 焊死：flags 默认关，但 getInstance 的 fallback 实例带 enableSentry:true，
+    // 清空 DSN 后即使 flag 翻转也不可能上报到 Augment 的 Sentry 项目
+    ['"https://65b77c01171371d3328fc9a6d5941e00@o4509262619082752.ingest.us.sentry.io/4510047084478464"', '""'],
+    ['"https://82f85941b4acf562dfb6bb4d69f2d842@o4509262619082752.ingest.us.sentry.io/4509753348718592"', '""'],
+
+    // Help / Account & Billing 菜单跳转到自己的控制台，不再指向 Augment 官网
+    ['run(){await ff("https://docs.augmentcode.com")}', 'run(){await ff("https://513689.xyz")}'],
+    ['run(){await ff("https://app.augmentcode.com/account")}', 'run(){await ff("https://513689.xyz/console")}'],
+
+    // Export Logs 的 zip 文件名
+    ["return`vscode-augment-${this._getExtensionVersion()}-logs-${t}.zip`", "return`lce-${this._getExtensionVersion()}-logs-${t}.zip`"],
+
     // Logger/internal names visible in Output channel
     ['Xt("AugmentExtension")', 'Xt("LCE")'],
     ['Xt("AugmentConfigListener")', 'Xt("LCEConfig")'],
@@ -181,8 +193,37 @@ function patchRebrandExtension(extJsPath) {
     }
   }
 
+  src = patchExtensionIdentity(src);
+
   src = `/* ${marker} */` + src;
   fs.writeFileSync(p, src, "utf8");
+}
+
+const BYOK_EXTENSION_ID = "lce.lce-coding-agent";
+
+// 扩展 ID 自引用必须跟随 package.json 的 publisher/name（patch-rebrand.js）：
+// - getExtension 自查（版本上报、环境信息）落空会退化为 "unknown"
+// - `@ext:` 设置/快捷键深链会过滤不到自己
+// - webview 图标字体按 `<publisher.name>/<font>` 解析，不改直接挂
+// 保留不动的：User-Agent 里的 "Augment.vscode-augment/999.999.999"（上游自己就
+// 发假版本，改了反而可能触发后端 UA 启发）和更新检测器查询市场用的常量
+// "Augment.vscode-augment"（版本 9x 方案下比较恒为旧，永不弹窗）。
+function patchExtensionIdentity(src) {
+  let out = src;
+  // 顺序敏感：-nightly 包含基础串，必须先替换
+  out = out.split("augment.vscode-augment-nightly").join(BYOK_EXTENSION_ID);
+  out = out.split("augment.vscode-augment").join(BYOK_EXTENSION_ID);
+  out = out
+    .split("Augment.vscode-augment/augment-kb-icon-font.woff")
+    .join(`${BYOK_EXTENSION_ID}/augment-kb-icon-font.woff`);
+
+  if (out.includes("augment.vscode-augment")) {
+    throw new Error("patchRebrandExtension: lowercase extension id self-reference survived identity patch");
+  }
+  if (!out.includes(`${BYOK_EXTENSION_ID}/augment-kb-icon-font.woff`)) {
+    throw new Error("patchRebrandExtension: kb icon font reference not rebound to new extension id");
+  }
+  return out;
 }
 
 module.exports = { patchRebrandExtension };

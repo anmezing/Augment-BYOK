@@ -106,11 +106,8 @@ async function runIndexOnce() {
     });
     if (!manifest) return null;
     info(`LCE index scan: ${formatScanStats(manifest.scanStats)}`);
-    if (manifest.files.length === 0) {
-      showFinalStatus("$(info) LCE: no indexable files", 6000);
-      return null;
-    }
 
+    // 空 manifest 也要上报：relay 会据此清掉此 workspace 的残留索引。
     showStatus(`$(sync~spin) LCE: comparing ${manifest.files.length} files...`);
     const created = await createIndexJob(connection, manifest, signal);
     let job = created && created.job;
@@ -146,7 +143,9 @@ async function runIndexOnce() {
     const completed = await completeIndexJob(connection, jobId, signal);
     job = completed.job || job;
     info(`LCE index completed: workspace=${manifest.workspaceId} mode=${job.mode} files=${job.indexedFiles} chunks=${job.indexedChunks}`);
-    if (Number(job.totalFiles) === 0 && Number(job.deletedCount) === 0) {
+    if (manifest.files.length === 0 && Number(job.deletedCount) === 0) {
+      showFinalStatus("$(info) LCE: no indexable files", 6000);
+    } else if (Number(job.totalFiles) === 0 && Number(job.deletedCount) === 0) {
       showFinalStatus("$(check) LCE: index is up to date", 3000);
     } else {
       showFinalStatus(`$(check) LCE: ${formatProgress(job)}`, 6000);

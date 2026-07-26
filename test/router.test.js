@@ -289,3 +289,16 @@ test("decideRoute: authenticated provider without any model falls back to offici
   assert.equal(r.reason, "model_missing");
   assert.equal(r.providerId, "openai");
 });
+
+test("decideRoute: unrouted endpoint defaults to protocol-safe disabled", () => {
+  const cfg = enableOpenAi(defaultConfig());
+  const r = decideRoute({ cfg, endpoint: "/remote-agents/list", body: {}, runtimeEnabled: true });
+  assert.equal(r.mode, "disabled");
+  assert.equal(r.reason, "unrouted");
+});
+
+test("decideRoute: unrouted endpoint still honors explicit byok model override", () => {
+  const cfg = enableOpenAi(defaultConfig());
+  const r = decideRoute({ cfg, endpoint: "/some-future-endpoint", body: { model: "byok:openai:gpt-4o-mini" }, runtimeEnabled: true });
+  assert.equal(r.mode, "byok");
+});

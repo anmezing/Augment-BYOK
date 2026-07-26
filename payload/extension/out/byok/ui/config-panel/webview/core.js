@@ -70,8 +70,6 @@
     cfg: {},
     runtimeEnabled: false,
     status: "Ready.",
-    clearOfficialToken: false,
-    officialTest: { running: false, ok: null, text: "" },
     providerExpanded: persistedProviderExpanded,
     modal: null,
     dirty: false,
@@ -229,12 +227,8 @@
 
         cfg.routing = cfg.routing && typeof cfg.routing === "object" ? cfg.routing : {};
 
-        cfg.official = cfg.official && typeof cfg.official === "object" ? cfg.official : {};
-        cfg.official.completionUrl = normalizeStr(qs("#officialCompletionUrl")?.value);
-
-        const officialTokenInput = normalizeStr(qs("#officialApiToken")?.value);
-        if (officialTokenInput) cfg.official.apiToken = officialTokenInput;
-        if (uiState.clearOfficialToken) cfg.official.apiToken = "";
+        // official（completionUrl/apiToken）由登录流程管理，面板不再提供编辑入口；
+        // 原样透传 state 中的值，避免保存时抹掉登录写入的凭据。
         delete cfg.officialDelegation;
         delete cfg.prompts;
 
@@ -265,7 +259,8 @@
   function setUiState(patch, { preserveEdits = true } = {}) {
     if (preserveEdits) {
       try {
-        if (qs("#officialCompletionUrl")) uiState.cfg = gatherConfigFromDom();
+        // 表单是否已渲染以常驻的 BYOK 开关为准
+        if (qs("#runtimeEnabledToggle")) uiState.cfg = gatherConfigFromDom();
       } catch {}
     }
     uiState = { ...uiState, ...(patch || {}) };

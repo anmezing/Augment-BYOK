@@ -3,6 +3,7 @@
 const { warn } = require("../infra/log");
 const { normalizeEndpoint, normalizeString, normalizeStringList } = require("../infra/util");
 const { defaultConfig } = require("./default-config");
+const { LEGACY_OFFICIAL_COMPLETION_HOSTS } = require("./official-endpoint");
 const { RELAY_DISABLED_AUXILIARY_ENDPOINTS } = require("./relay-disabled-endpoints");
 
 const UNSAFE_JSON_KEYS = new Set(["__proto__", "prototype", "constructor"]);
@@ -30,6 +31,14 @@ function normalizeUnderlyingModelMapping(raw) {
     titleGeneration: normalizeString(rec?.titleGeneration ?? rec?.title_generation),
     summary: normalizeString(rec?.summary)
   };
+}
+
+function isLegacyOfficialCompletionUrl(value) {
+  try {
+    return LEGACY_OFFICIAL_COMPLETION_HOSTS.includes(new URL(value).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
 }
 
 function normalizeMode(v) {
@@ -69,7 +78,7 @@ function normalizeConfig(raw) {
   const official = asObject(raw.official);
   if (official) {
     const completionUrl = normalizeString(official.completionUrl);
-    if (completionUrl) out.official.completionUrl = completionUrl;
+    if (completionUrl && !isLegacyOfficialCompletionUrl(completionUrl)) out.official.completionUrl = completionUrl;
     if (Object.prototype.hasOwnProperty.call(official, "apiToken")) out.official.apiToken = normalizeString(official.apiToken);
   }
 

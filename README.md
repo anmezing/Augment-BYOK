@@ -1,12 +1,13 @@
 # Augment-BYOK（请尽快 PR 合并，避免跟不上本仓库）
 
-单一 VSIX：把 Augment 的 **7 个 LLM 数据面端点**按路由转到 BYOK（支持 Streaming + tool use）；Relay 不支持的辅助端点在本地 no-op，其它端点保持官方行为；支持运行时一键回滚（无需 Rust/外部服务）。
+单一 VSIX：把上游的 **7 个 LLM 数据面端点**按路由转到 BYOK（支持 Streaming + tool use）；未配置规则的端点默认在本地协议安全 no-op（Relay 只实现少数端点，默认放行会撞 401/404 并被上游误判为会话失效），显式配置 `mode=official` 的规则仍然放行；支持运行时一键回滚（无需 Rust/外部服务）。扩展身份为 `lce.lce-coding-agent`、版本采用 9 前缀方案（如 `90.890.3`），与 Augment 市场条目脱钩，不再出现更新提示或被官方版覆盖。
 
 默认 relay：`https://513689.xyz/relay/`。默认模型列表由本地 BYOK registry 生成；使用官方上下文注入前，请先到 `https://513689.xyz/login` 自行注册并填写自己的 API Token；仅自定义私有租户地址会尝试远端 `/get-models`。本项目不再内置或随机分配 key。
 
 ## 安装（推荐：Releases）
 
-- GitHub Releases（tag：`rolling`）下载 `augment.vscode-augment.*-byok.*.vsix`
+- GitHub Releases（tag：`rolling`）下载 `lce.lce-coding-agent.*-byok.*.vsix`
+- 从旧的 `Augment.vscode-augment` 身份升级：扩展 ID 已变更，配置/登录/聊天记录不随迁——先在旧版配置面板**导出**配置，安装新版后重新登录并**导入**（聊天记录无法迁移）
 - VS Code → Extensions → `...` → `Install from VSIX...` → Reload Window
 
 ## 快速配置（面板）
@@ -58,7 +59,7 @@
 
 - 快速检查（不依赖上游缓存）：`npm run check:fast`
 - 完整检查（需要缓存上游 VSIX）：`npm run upstream:analyze`（一次）→ `npm run check`
-- 构建：`npm run build:vsix`（产物：`dist/augment.vscode-augment.<upstreamVersion>-byok.<buildId>.vsix`）
+- 构建：`npm run build:vsix`（产物：`dist/lce.lce-coding-agent.<byokVersion>-byok.<buildId>.vsix`，`byokVersion` 为 9 前缀方案）
 
 ## 全量修改功能（对上游 VSIX 的“全量改动面”清单）
 
@@ -87,7 +88,7 @@
 - [x] Overlay 运行时代码与 UI：把 `payload/extension/out/byok/*` 覆盖到上游 `extension/out/byok/*`
 - [x] 上游 VSIX 下载/解包能力复用：`tools/lib/upstream-vsix.js`（build / analyze / contracts 共用）
 - [x] BYOK patch 编排复用：`tools/lib/byok-workflow.js`（避免构建脚本与合约脚本漂移）
-- [x] 产物输出：`dist/augment.vscode-augment.<upstreamVersion>-byok.<buildId>.vsix`
+- [x] 产物输出：`dist/lce.lce-coding-agent.<byokVersion>-byok.<buildId>.vsix`
 - [x] 产物锁文件（上游+产物 sha）：`upstream.lock.json` / `dist/upstream.lock.json`
 - [x] 端点覆盖报告：`dist/endpoint-coverage.report.md`（LLM 端点覆盖矩阵）
 - [x] 上游端点全集分析：`.cache/reports/upstream-analysis.json`（由 `npm run upstream:analyze` 生成）
@@ -222,10 +223,10 @@
 - [x] 防原型污染：拒绝/过滤 `__proto__` / `prototype` / `constructor` 等不安全 key（配置与 UI 消息均做 hasOwnProperty 防护）
 - [x] BYOK 内部字段隔离：`requestDefaults` 中的 BYOK 内部 key 会在发往上游前剥离（避免污染上游请求）
 
-#### 4.4 Official 连接（用于上下文注入；也可切私有租户）
+#### 4.4 Official 连接（由登录流程管理，配置面板不再提供手填入口）
 
-- [x] `official.completionUrl`：默认 `https://513689.xyz/relay/`（可切私有租户）
-- [x] `official.apiToken`：默认空；到 `https://513689.xyz/login` 自行注册并填写自己的 API Token；清空则会跳过私有租户 `/get-models` 与上下文注入并输出一次降级提示
+- [x] `official.completionUrl` / `official.apiToken`：插件登录流程自动写入（默认 `https://513689.xyz/relay/`）；配置面板已移除 Official 手填区块，保存不会触碰这两个字段；切私有租户可通过配置导入/导出修改
+- [x] token 缺失时跳过私有租户 `/get-models` 与上下文注入并输出一次降级提示（fail-open）
 - [x] 官方上下文注入入口：`agents/codebase-retrieval` / `search-external-sources` / `context-canvas/list`
 
 #### 4.5 providers[]（BYOK 上游列表）

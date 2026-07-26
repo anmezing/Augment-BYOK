@@ -110,7 +110,7 @@
     "/chat": "非流式 chat（或某些场景的 chat 请求）",
     "/completion": "编辑器 inline completion（短文本）",
     "/chat-input-completion": "Chat 输入框智能补全",
-    "/chat-stream": "核心聊天流（Augment NDJSON）",
+    "/chat-stream": "核心聊天流（上游 NDJSON 协议）",
     "/prompt-enhancer": "提示词增强（stream）",
     "/generate-commit-message-stream": "Commit message（stream）",
     /* END GENERATED: LLM_ENDPOINT_MEANINGS */
