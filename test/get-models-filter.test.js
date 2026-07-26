@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const http = require("node:http");
 
 const { defaultConfig } = require("../payload/extension/out/byok/config/default-config");
+const { DEFAULT_OFFICIAL_COMPLETION_URL } = require("../payload/extension/out/byok/config/official-endpoint");
 const { state } = require("../payload/extension/out/byok/config/state");
 const { buildByokModelsFromConfig, hasUsableProviderAuth } = require("../payload/extension/out/byok/core/protocol");
 const { maybeHandleCallApi } = require("../payload/extension/out/byok/runtime/shim/call-api");
@@ -287,6 +288,38 @@ test("handleGetModels: missing official token skips network and uses local BYOK 
     });
   } finally {
     await new Promise((r) => server.close(r));
+  }
+});
+
+test("handleGetModels: default LCE relay skips unsupported remote get-models", async () => {
+  const cfg = defaultConfig();
+  cfg.official.apiToken = "lce-token";
+  cfg.providers[0].apiKey = "sk-test-openai";
+  cfg.providers[0].baseUrl = "https://api.openai.com/v1";
+
+  const previousFetch = global.fetch;
+  let fetchCount = 0;
+  global.fetch = async () => {
+    fetchCount += 1;
+    throw new Error("default LCE relay should not fetch get-models");
+  };
+
+  try {
+    await withConfig(cfg, async () => {
+      const out = await maybeHandleCallApi({
+        endpoint: "/get-models",
+        body: {},
+        timeoutMs: 2000,
+        upstreamCompletionURL: DEFAULT_OFFICIAL_COMPLETION_URL,
+        upstreamApiToken: "lce-token"
+      });
+
+      assert.equal(fetchCount, 0);
+      assert.equal(out.default_model, "byok:openai:gpt-5.2");
+      assert.ok(out.models.every((model) => model.name.startsWith("byok:")));
+    });
+  } finally {
+    global.fetch = previousFetch;
   }
 });
 

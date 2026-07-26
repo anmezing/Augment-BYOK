@@ -39,6 +39,17 @@ function warnGetModelsOfficialSkippedOnce({ requestId, missing }) {
   );
 }
 
+function isDefaultLceRelayCompletionUrl(value) {
+  try {
+    const current = new URL(String(value));
+    const expected = new URL(DEFAULT_OFFICIAL_COMPLETION_URL);
+    const normalizePath = (pathname) => `${pathname.replace(/\/+$/, "")}/`;
+    return current.origin === expected.origin && normalizePath(current.pathname) === normalizePath(expected.pathname);
+  } catch {
+    return false;
+  }
+}
+
 async function handleGetModels({ cfg, ep, transform, abortSignal, timeoutMs, upstreamApiToken, upstreamCompletionURL, requestId }) {
   const byokModels = buildByokModelsFromConfig(cfg);
   const defaultModel = byokModels.length ? byokModels[0] : "";
@@ -52,6 +63,9 @@ async function handleGetModels({ cfg, ep, transform, abortSignal, timeoutMs, ups
       if (!completionURL) missing.push("official.completionUrl");
       if (!apiToken) missing.push("official.apiToken");
       warnGetModelsOfficialSkippedOnce({ requestId, missing });
+      return safeTransform(transform, buildLocalGetModelsResult({ defaultModel, byokModels }), ep);
+    }
+    if (isDefaultLceRelayCompletionUrl(completionURL)) {
       return safeTransform(transform, buildLocalGetModelsResult({ defaultModel, byokModels }), ep);
     }
 

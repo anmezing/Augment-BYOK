@@ -2,7 +2,7 @@
 
 单一 VSIX：把 Augment 的 **7 个 LLM 数据面端点**按路由转到 BYOK（支持 Streaming + tool use）；Relay 不支持的辅助端点在本地 no-op，其它端点保持官方行为；支持运行时一键回滚（无需 Rust/外部服务）。
 
-默认 relay：`https://513689.xyz/relay/`。使用官方 `/get-models` 合并与官方上下文注入前，请先到 `https://513689.xyz/login` 自行注册并填写自己的 API Token；本项目不再内置或随机分配 key。
+默认 relay：`https://513689.xyz/relay/`。默认模型列表由本地 BYOK registry 生成；使用官方上下文注入前，请先到 `https://513689.xyz/login` 自行注册并填写自己的 API Token；仅自定义私有租户地址会尝试远端 `/get-models`。本项目不再内置或随机分配 key。
 
 ## 安装（推荐：Releases）
 
@@ -222,10 +222,10 @@
 - [x] 防原型污染：拒绝/过滤 `__proto__` / `prototype` / `constructor` 等不安全 key（配置与 UI 消息均做 hasOwnProperty 防护）
 - [x] BYOK 内部字段隔离：`requestDefaults` 中的 BYOK 内部 key 会在发往上游前剥离（避免污染上游请求）
 
-#### 4.4 Official 连接（用于：/get-models 合并；也可切私有租户）
+#### 4.4 Official 连接（用于上下文注入；也可切私有租户）
 
 - [x] `official.completionUrl`：默认 `https://513689.xyz/relay/`（可切私有租户）
-- [x] `official.apiToken`：默认空；到 `https://513689.xyz/login` 自行注册并填写自己的 API Token；清空则会跳过官方 `/get-models` 与上下文注入并输出一次降级提示
+- [x] `official.apiToken`：默认空；到 `https://513689.xyz/login` 自行注册并填写自己的 API Token；清空则会跳过私有租户 `/get-models` 与上下文注入并输出一次降级提示
 - [x] 官方上下文注入入口：`agents/codebase-retrieval` / `search-external-sources` / `context-canvas/list`
 
 #### 4.5 providers[]（BYOK 上游列表）
@@ -309,11 +309,11 @@
 
 - [x] 从 BYOK 配置构建 byok models：仅对“可执行配置”（已配置 baseUrl + 可用 auth/headers + 已知 provider.type）注入 `providers[].models` → `byok:<providerId>:<modelId>`
 - [x] 默认模型选择：优先第一个“可执行” provider / 其 defaultModel；无可执行 provider 时 `default_model` 为空且 `models=[]`
-- [-] 尝试调用官方 `/get-models` 获取基础 flags（用于兼容上游 model registry）
+- [x] 默认 LCE Relay 不实现 `/get-models`，直接使用本地 registry；仅自定义私有租户地址时尝试远端获取基础 flags
 - [x] scrub 官方 `feature_flags` 中的 model registry 相关字段（避免冲突/双注册）
 - [x] 注入 model registry feature_flags（确保上游 Model Picker/feature gate 正常）
 - [x] 注入 `models[]`：仅返回 `byok:*`（runtimeEnabled=true 时避免“官方模型混入”的困惑）
-- [-] 官方调用失败兜底：回退到本地 `byok models` 列表（不中断）
+- [x] 私有租户调用失败兜底：回退到本地 `byok models` 列表（不中断）
 
 #### 6.2 `/chat`（Augment chat → provider chat，非流式）
 
