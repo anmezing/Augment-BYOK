@@ -1,12 +1,13 @@
 "use strict";
 
 const { BUILTIN_CONTEXT_WINDOW_TOKENS_OVERRIDES } = require("../core/token-budget/context-window");
+const { DEFAULT_OFFICIAL_COMPLETION_URL } = require("./official-endpoint");
 
 function defaultConfig() {
   return {
     version: 1,
     official: {
-      completionUrl: "https://513689.xyz/relay/",
+      completionUrl: DEFAULT_OFFICIAL_COMPLETION_URL,
       apiToken: ""
     },
     historySummary: {

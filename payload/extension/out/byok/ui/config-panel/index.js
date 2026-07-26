@@ -4,14 +4,13 @@ const { debug, info, warn } = require("../../infra/log");
 const { DEFAULT_SELF_TEST_TIMEOUT_MS } = require("../../infra/constants");
 const { normalizeString, normalizeRawToken } = require("../../infra/util");
 const { setRuntimeEnabled: setRuntimeEnabledPersisted } = require("../../config/state");
+const { DEFAULT_OFFICIAL_COMPLETION_URL } = require("../../config/official");
 const { clearHistorySummaryCacheAll } = require("../../core/augment-history-summary/auto");
 const { runSelfTest } = require("../../core/self-test/run");
 const { fetchOfficialGetModels } = require("../../runtime/official/get-models");
 const { fetchProviderModels } = require("../../providers/models");
 const { renderConfigPanelHtml } = require("./html");
 const { exportConfigWithDialog, importConfigWithDialog, runIoWithUiErrorBoundary } = require("../config-io");
-const { loginLCE: runLceLogin } = require("../../runtime/lce/login");
-
 
 function post(panel, msg) {
   try {
@@ -136,18 +135,6 @@ function createHandlers({ vscode, ctx, cfgMgr, state, panel }) {
       }
       postRender(panel, cfgMgr, state);
     },
-    loginLCE: async () => {
-      try {
-        await runLceLogin({ vscode, ctx, cfgMgr });
-        info("LCE login: token saved");
-        post(panel, { type: "lceLoginOk" });
-        postRender(panel, cfgMgr, state);
-      } catch (err) {
-        const m = err instanceof Error ? err.message : String(err);
-        warn("LCE login failed:", m);
-        post(panel, { type: "lceLoginFailed", error: m });
-      }
-    },
     clearHistorySummaryCache: async () => {
       try {
         const n = await clearHistorySummaryCacheAll();
@@ -178,12 +165,12 @@ function createHandlers({ vscode, ctx, cfgMgr, state, panel }) {
       const requestId = normalizeString(msg?.requestId);
       const cfg = msg && typeof msg === "object" && msg.config && typeof msg.config === "object" ? msg.config : cfgMgr.get();
       const off = cfg?.official && typeof cfg.official === "object" ? cfg.official : {};
-      const completionUrl = normalizeString(off.completionUrl) || "https://513689.xyz/relay/";
+      const completionUrl = normalizeString(off.completionUrl) || DEFAULT_OFFICIAL_COMPLETION_URL;
       const apiToken = normalizeRawToken(off.apiToken);
 
       try {
         if (!apiToken) {
-          throw new Error("请先登录 LCE 获取 API Token（点击「登录 LCE」按钮）");
+          throw new Error("当前没有可用的 LCE API Token，请先完成插件登录或手动填写并保存");
         }
         const startedAtMs = Date.now();
         const json = await fetchOfficialGetModels({ completionURL: completionUrl, apiToken, timeoutMs: 12000 });

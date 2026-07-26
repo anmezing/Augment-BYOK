@@ -217,15 +217,11 @@
 		                <label class="form-label" for="officialApiToken">API Token</label>
 		                ${tokenBadge}
 		              </div>
-	              <div class="flex-row">
+		              <div class="flex-row">
 	                <input type="password" id="officialApiToken" value="" placeholder="${off.apiToken ? "(set)" : "(empty)"}" />
 	                <button class="btn btn--icon btn--danger" data-action="clearOfficialToken" title="清空 Token">✕</button>
 		              </div>
-		              <div class="text-muted text-xs">点击「登录 LCE」自动获取；或手动粘贴从控制台复制的 API Key。</div>
-		            </div>
-		            <div class="form-group">
-		              <button class="btn btn--primary" data-action="loginLCE" style="width:100%">登录 LCE</button>
-		              <div class="text-muted text-xs" style="margin-top:4px">在浏览器中登录 LCE 账号，自动获取并填充 API Token。</div>
+		              <div class="text-muted text-xs">插件登录后会自动写入；也可手动粘贴从控制台复制的 API Key。</div>
 		            </div>
 		          </div>
 		        </div>

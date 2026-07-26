@@ -1,12 +1,13 @@
 "use strict";
 
 const { warn } = require("../../infra/log");
-const { getOfficialConnection } = require("../../config/official");
+const { DEFAULT_OFFICIAL_COMPLETION_URL, getOfficialConnection } = require("../../config/official");
 const { normalizeString, normalizeRawToken } = require("../../infra/util");
 const augmentChatShared = require("../../core/augment-chat/shared");
 const { REQUEST_NODE_TEXT, REQUEST_NODE_TOOL_RESULT } = require("../../core/augment-protocol");
 
 const OFFICIAL_CONTEXT_SKIP_WARNED = new Set();
+const LCE_LOGIN_URL = `${new URL(DEFAULT_OFFICIAL_COMPLETION_URL).origin}/login`;
 
 function makeTextRequestNode({ id, text }) {
   return { id: Number(id) || 0, type: REQUEST_NODE_TEXT, content: "", text_node: { content: String(text || "") } };
@@ -52,7 +53,7 @@ function warnOfficialContextSkippedOnce(feature, missing) {
   if (OFFICIAL_CONTEXT_SKIP_WARNED.has(key)) return;
   OFFICIAL_CONTEXT_SKIP_WARNED.add(key);
   warn(
-    `official context injection skipped: degraded=true feature=${f} missing=${m || "unknown"} network=skipped; BYOK chat continues without this official context. Configure official.completionUrl and official.apiToken (register: https://513689.xyz/login), or set disable_retrieval=true if this is intentional.`
+    `official context injection skipped: degraded=true feature=${f} missing=${m || "unknown"} network=skipped; BYOK chat continues without this official context. Configure official.completionUrl and official.apiToken (register: ${LCE_LOGIN_URL}), or set disable_retrieval=true if this is intentional.`
   );
 }
 

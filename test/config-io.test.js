@@ -6,7 +6,7 @@ const { REDACTED, redactConfigSecrets, mergeConfigPreservingSecrets } = require(
 function makeCfg({ officialToken, providerKey, headers } = {}) {
   return {
     version: 1,
-    official: { completionUrl: "https://acemcp.heroman.wtf/relay/", apiToken: officialToken || "" },
+    official: { completionUrl: "https://513689.xyz/relay/", apiToken: officialToken || "" },
     providers: [
       {
         id: "p1",

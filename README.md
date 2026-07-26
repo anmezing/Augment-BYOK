@@ -2,7 +2,7 @@
 
 单一 VSIX：把 Augment 的 **7 个 LLM 数据面端点**按路由转到 BYOK（支持 Streaming + tool use），其它端点保持官方行为；支持运行时一键回滚（无需 Rust/外部服务）。
 
-默认 relay：`https://acemcp.heroman.wtf/relay/`。使用官方 `/get-models` 合并与官方上下文注入前，请先到 `https://acemcp.heroman.wtf/login` 自行注册并填写自己的 API Token；本项目不再内置或随机分配 key。
+默认 relay：`https://513689.xyz/relay/`。使用官方 `/get-models` 合并与官方上下文注入前，请先到 `https://513689.xyz/login` 自行注册并填写自己的 API Token；本项目不再内置或随机分配 key。
 
 ## 安装（推荐：Releases）
 
@@ -224,8 +224,8 @@
 
 #### 4.4 Official 连接（用于：/get-models 合并；也可切私有租户）
 
-- [x] `official.completionUrl`：默认 `https://acemcp.heroman.wtf/relay/`（可切私有租户）
-- [x] `official.apiToken`：默认空；到 `https://acemcp.heroman.wtf/login` 自行注册并填写自己的 API Token；清空则会跳过官方 `/get-models` 与上下文注入并输出一次降级提示
+- [x] `official.completionUrl`：默认 `https://513689.xyz/relay/`（可切私有租户）
+- [x] `official.apiToken`：默认空；到 `https://513689.xyz/login` 自行注册并填写自己的 API Token；清空则会跳过官方 `/get-models` 与上下文注入并输出一次降级提示
 - [x] 官方上下文注入入口：`agents/codebase-retrieval` / `search-external-sources` / `context-canvas/list`
 
 #### 4.5 providers[]（BYOK 上游列表）

@@ -2,8 +2,7 @@
 
 const { ensureConfigManager } = require("./state");
 const { normalizeString, normalizeRawToken } = require("../infra/util");
-
-const DEFAULT_OFFICIAL_COMPLETION_URL = "https://513689.xyz/relay/";
+const { DEFAULT_OFFICIAL_COMPLETION_URL } = require("./official-endpoint");
 
 function normalizeBaseUrl(url) {
   const s = normalizeString(url);

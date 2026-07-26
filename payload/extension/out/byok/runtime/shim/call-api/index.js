@@ -4,7 +4,7 @@ const { warn } = require("../../../infra/log");
 const { withTiming } = require("../../../infra/trace");
 const { normalizeEndpoint, normalizeString, normalizeRawToken, safeTransform, stripUpstreamProviderOverrideKeys } = require("../../../infra/util");
 const { state } = require("../../../config/state");
-const { getOfficialConnection } = require("../../../config/official");
+const { DEFAULT_OFFICIAL_COMPLETION_URL, getOfficialConnection } = require("../../../config/official");
 const { fetchOfficialGetModels } = require("../../official/get-models");
 const { normalizeUpstreamCompletionURL } = require("../../official/common");
 const { ensureModelRegistryFeatureFlags } = require("../../../core/model-registry");
@@ -18,6 +18,7 @@ const { byokCompleteText } = require("../byok-text");
 const { byokChat } = require("../byok-chat");
 const { resolveByokRouteContext } = require("../route");
 const { resolveByokTextPromptContext } = require("../text-assembly");
+const LCE_LOGIN_URL = `${new URL(DEFAULT_OFFICIAL_COMPLETION_URL).origin}/login`;
 const { providerLabel } = require("../common");
 const { rememberUpstreamCallHost } = require("../../upstream/discovery");
 
@@ -33,7 +34,7 @@ function warnGetModelsOfficialSkippedOnce({ requestId, missing }) {
   if (GET_MODELS_OFFICIAL_SKIP_WARNED.has(key)) return;
   GET_MODELS_OFFICIAL_SKIP_WARNED.add(key);
   warn(
-    "get-models official fetch skipped: degraded=true network=skipped; using local BYOK model registry only. Configure official.apiToken after logging in at https://513689.xyz/login.",
+    `get-models official fetch skipped: degraded=true network=skipped; using local BYOK model registry only. Configure official.apiToken after logging in at ${LCE_LOGIN_URL}.`,
     { requestId, missing: list.length ? list : ["unknown"] }
   );
 }

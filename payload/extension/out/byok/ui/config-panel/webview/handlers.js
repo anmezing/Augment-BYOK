@@ -83,12 +83,6 @@
       const prev = getSelfTestState();
       return setUiState({ selfTest: { ...prev, running: false }, status: "Self Test canceled." }, { preserveEdits: true });
     }
-    if (t === "lceLoginOk") {
-      return setUiState({ status: "LCE 登录成功，Token 已填充。请点击保存。", dirty: true }, { preserveEdits: true });
-    }
-    if (t === "lceLoginFailed") {
-      return setUiState({ status: msg.error || "LCE 登录失败。" }, { preserveEdits: true });
-    }
     if (t === "officialGetModelsOk") {
       const modelsCount = Number.isFinite(Number(msg?.modelsCount)) ? Number(msg.modelsCount) : 0;
       const defaultModel = normalizeStr(msg?.defaultModel);
@@ -259,10 +253,6 @@
     if (a === "importConfig") {
       postToExtension({ type: "importConfig", dirty: Boolean(getUiState()?.dirty) });
       return setUiState({ status: "Importing..." }, { preserveEdits: true });
-    }
-    if (a === "loginLCE") {
-      postToExtension({ type: "loginLCE" });
-      return setUiState({ status: "正在打开浏览器登录 LCE..." }, { preserveEdits: true });
     }
     if (a === "clearHistorySummaryCache") {
       postToExtension({ type: "clearHistorySummaryCache" });
