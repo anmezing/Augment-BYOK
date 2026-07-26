@@ -245,6 +245,14 @@ function main(argv = process.argv) {
   ok("extension.js markers ok");
 
   assertContains(extJs, "__augment_byok_oauth_replaced_v1", "upstream OAuth entry points replaced");
+  assertContains(extJs, "__augment_byok_auth_reload_webview_v1", "auth-change main panel reload injected");
+  assertContains(extJs, "const P=r,H=++n;return i(P).then(", "enable lifecycle Promise returned");
+  assertContains(extJs, "a(r);return l(`reload (${L})`)}", "reload lifecycle Promise returned");
+  assertContains(
+    extJs,
+    'A.onDidChangeSession(async()=>{await c("auth session change"),await V.reloadWebview()})',
+    "auth session listener waits for restart and reloads main panel"
+  );
   assertContains(extJs, "__byok_rebranded_v1", "extension.js rebranded (Augment → LCE)");
   const loginLceHits = extJs.split("augment-byok.loginLCE").length - 1;
   assert(loginLceHits >= 2, `extension.js expected >=2 augment-byok.loginLCE entry points, got ${loginLceHits}`);
