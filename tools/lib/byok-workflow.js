@@ -22,6 +22,7 @@ const { patchWebviewHistorySummaryNode } = require("../patch/patch-webview-histo
 const { patchWebviewAssetCacheBust } = require("../patch/patch-webview-asset-cache-bust");
 const { guardNoAutoAuth } = require("../patch/guard-no-autoauth");
 const { patchDisableAugmentOAuth } = require("../patch/patch-disable-augment-oauth");
+const { patchManagedMcpAuth } = require("../patch/patch-managed-mcp-auth");
 const { patchRebrand } = require("../patch/patch-rebrand");
 const { patchRebrandExtension } = require("../patch/patch-rebrand-extension");
 const { patchRebrandWebview } = require("../patch/patch-rebrand-webview");
@@ -98,6 +99,9 @@ function applyByokPatches({ repoRoot, extensionDir, pkgPath, extJsPath, logPrefi
 
   log(`patch tasklist tools (reorganize_tasklist no-op => error)`);
   patchTasklistReorganizeNoopErrors(extJs);
+
+  log(`patch managed LCE MCP authentication headers`);
+  patchManagedMcpAuth(extJs);
 
   log(`disable upstream Augment OAuth (LCE-only login)`);
   patchDisableAugmentOAuth(extJs);

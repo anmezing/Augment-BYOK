@@ -241,8 +241,17 @@ function main(argv = process.argv) {
   assertContains(extJs, "__augment_byok_tasklist_add_tasks_sanitize_empty_ids_patched_v1", "tasklist add_tasks sanitize empty ids patched");
   assertContains(extJs, "__augment_byok_tasklist_add_tasks_errors_patched_v1", "tasklist add_tasks errors patched");
   assertContains(extJs, "__augment_byok_tasklist_reorganize_noop_errors_patched_v1", "tasklist reorganize no-op errors patched");
+  assertContains(extJs, "__augment_byok_managed_mcp_auth_v1", "managed LCE MCP auth patched");
   assert(!extJs.includes("case \"/autoAuth\"") && !extJs.includes("handleAutoAuth"), "autoAuth guard failed (post-check)");
   ok("extension.js markers ok");
+
+  const managedMcpAuthBypass = 'if(t.id==="augment-byok-lce"&&(t.type==="http"||t.type==="sse")&&t.headers){/*__augment_byok_managed_mcp_auth_v1*/return t.headers}';
+  assertContains(extJs, managedMcpAuthBypass, "managed LCE MCP headers bypass secret storage");
+  assert(
+    extJs.indexOf(managedMcpAuthBypass) < extJs.indexOf("await kc().getSecret", extJs.indexOf(managedMcpAuthBypass)),
+    "managed LCE MCP headers must return before PluginMcpConfig secret access"
+  );
+  ok("managed LCE MCP auth contracts ok");
 
   assertContains(extJs, "__augment_byok_oauth_replaced_v1", "upstream OAuth entry points replaced");
   assertContains(extJs, "__augment_byok_auth_reload_webview_v1", "auth-change main panel reload injected");
@@ -250,9 +259,10 @@ function main(argv = process.argv) {
   assertContains(extJs, "a(r);return l(`reload (${L})`)}", "reload lifecycle Promise returned");
   assertContains(
     extJs,
-    'A.onDidChangeSession(async()=>{await c("auth session change"),await V.reloadWebview()})',
-    "auth session listener waits for restart and reloads main panel"
+    "A.onDidChangeSession(async()=>{await V.reloadWebview()})",
+    "auth session listener reloads main panel without restarting services"
   );
+  assert(!extJs.includes('c("auth session change")'), "auth session listener still restarts extension services");
   assertContains(extJs, "__byok_rebranded_v1", "extension.js rebranded (Augment → LCE)");
   const loginLceHits = extJs.split("augment-byok.loginLCE").length - 1;
   assert(loginLceHits >= 2, `extension.js expected >=2 augment-byok.loginLCE entry points, got ${loginLceHits}`);

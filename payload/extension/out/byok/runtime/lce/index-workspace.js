@@ -6,6 +6,9 @@ const { execFile } = require("child_process");
 const MAX_FILE_SIZE = 512 * 1024;
 const ESTIMATED_CHUNK_BYTES = 1500;
 const EXCLUDE_GLOB = "{**/node_modules/**,**/.git/**,**/dist/**,**/build/**,**/.next/**,**/__pycache__/**}";
+const FILE_TYPE_FILE = 1;
+const FILE_TYPE_DIRECTORY = 2;
+const FILE_TYPE_SYMBOLIC_LINK = 64;
 const EXCLUDE_PATTERNS = [
   /(^|\/)node_modules\//,
   /(^|\/)\.git\//,
@@ -41,6 +44,78 @@ function isLikelyText(buffer) {
     if (byte === 0) return false;
   }
   return true;
+}
+
+function createScanStats() {
+  return {
+    primaryDiscovered: 0,
+    fallbackDiscovered: 0,
+    excluded: 0,
+    empty: 0,
+    oversized: 0,
+    binary: 0,
+    statFailures: 0,
+    readFailures: 0,
+    indexable: 0
+  };
+}
+
+function formatScanStats(stats) {
+  const value = stats && typeof stats === "object" ? stats : {};
+  return [
+    `primary=${Number(value.primaryDiscovered) || 0}`,
+    `fallback=${Number(value.fallbackDiscovered) || 0}`,
+    `excluded=${Number(value.excluded) || 0}`,
+    `empty=${Number(value.empty) || 0}`,
+    `oversized=${Number(value.oversized) || 0}`,
+    `binary=${Number(value.binary) || 0}`,
+    `statFailures=${Number(value.statFailures) || 0}`,
+    `readFailures=${Number(value.readFailures) || 0}`,
+    `indexable=${Number(value.indexable) || 0}`
+  ].join(" ");
+}
+
+function joinUri(vscode, baseUri, name) {
+  if (!vscode || !vscode.Uri || typeof vscode.Uri.joinPath !== "function") {
+    throw new Error("LCE workspace scan requires vscode.Uri.joinPath");
+  }
+  return vscode.Uri.joinPath(baseUri, name);
+}
+
+async function probeWorkspaceRoots(vscode, folders) {
+  const result = { candidateFiles: 0, readFailures: 0 };
+  for (const folder of folders) {
+    if (!folder || !folder.uri) continue;
+    const pending = [{ uri: folder.uri, relativePath: "" }];
+    while (pending.length) {
+      const current = pending.pop();
+      let entries;
+      try {
+        entries = await vscode.workspace.fs.readDirectory(current.uri);
+      } catch {
+        result.readFailures += 1;
+        continue;
+      }
+      for (const entry of Array.isArray(entries) ? entries : []) {
+        const name = String(entry && entry[0] || "");
+        const type = Number(entry && entry[1]) || 0;
+        if (!name) continue;
+        const relativePath = normalizePath(current.relativePath ? `${current.relativePath}/${name}` : name);
+        const isDirectory = (type & FILE_TYPE_DIRECTORY) !== 0;
+        const isSymbolicLink = (type & FILE_TYPE_SYMBOLIC_LINK) !== 0;
+        if (shouldExclude(isDirectory ? `${relativePath}/` : relativePath)) continue;
+        if (isDirectory && !isSymbolicLink) {
+          pending.push({ uri: joinUri(vscode, current.uri, name), relativePath });
+          continue;
+        }
+        if ((type & FILE_TYPE_FILE) !== 0 || !isDirectory) {
+          result.candidateFiles = 1;
+          return result;
+        }
+      }
+    }
+  }
+  return result;
 }
 
 function workspaceIdentity(folders) {
@@ -93,31 +168,72 @@ async function buildWorkspaceManifest(vscode, onProgress) {
 
   const identity = workspaceIdentity(folders);
   const git = await getGitState(folders);
-  const uris = await vscode.workspace.findFiles("**/*", EXCLUDE_GLOB);
+  const stats = createScanStats();
+  const primary = await vscode.workspace.findFiles("**/*", EXCLUDE_GLOB);
+  stats.primaryDiscovered = Array.isArray(primary) ? primary.length : 0;
+  let uris = Array.isArray(primary) ? primary : [];
+
+  if (uris.length === 0) {
+    const probe = await probeWorkspaceRoots(vscode, folders);
+    stats.readFailures += probe.readFailures;
+    if (probe.candidateFiles > 0 || probe.readFailures > 0) {
+      const fallback = await vscode.workspace.findFiles("**/*", null);
+      stats.fallbackDiscovered = Array.isArray(fallback) ? fallback.length : 0;
+      uris = Array.isArray(fallback) ? fallback : [];
+      if (uris.length === 0) {
+        const reason = probe.candidateFiles > 0
+          ? "workspace roots contain candidate files"
+          : "workspace roots could not be fully inspected";
+        throw new Error(`LCE workspace scan failed: findFiles returned 0 files although ${reason}`);
+      }
+    }
+  }
+
   const files = [];
+  let fileReadFailures = 0;
   let visited = 0;
 
   for (const uri of uris) {
     visited += 1;
     if (typeof onProgress === "function") onProgress(visited, uris.length);
     const relativePath = normalizePath(vscode.workspace.asRelativePath(uri, false));
-    if (shouldExclude(relativePath)) continue;
+    if (shouldExclude(relativePath)) {
+      stats.excluded += 1;
+      continue;
+    }
 
     let stat;
     try {
       stat = await vscode.workspace.fs.stat(uri);
     } catch {
+      stats.statFailures += 1;
       continue;
     }
-    if (!stat || stat.size <= 0 || stat.size > MAX_FILE_SIZE) continue;
+    if (!stat || stat.size <= 0) {
+      stats.empty += 1;
+      continue;
+    }
+    if (stat.size > MAX_FILE_SIZE) {
+      stats.oversized += 1;
+      continue;
+    }
 
     let raw;
     try {
       raw = Buffer.from(await vscode.workspace.fs.readFile(uri));
     } catch {
+      stats.readFailures += 1;
+      fileReadFailures += 1;
       continue;
     }
-    if (!raw.length || !isLikelyText(raw)) continue;
+    if (!raw.length) {
+      stats.empty += 1;
+      continue;
+    }
+    if (!isLikelyText(raw)) {
+      stats.binary += 1;
+      continue;
+    }
     files.push({
       path: relativePath,
       hash: fileHash(raw),
@@ -125,9 +241,13 @@ async function buildWorkspaceManifest(vscode, onProgress) {
       estimatedChunks: estimateChunks(raw),
       uri
     });
+    stats.indexable += 1;
   }
   files.sort((a, b) => a.path.localeCompare(b.path));
-  return { ...identity, ...git, files };
+  if (files.length === 0 && stats.statFailures + fileReadFailures > 0) {
+    throw new Error(`LCE workspace scan failed: no files could be indexed (${formatScanStats(stats)})`);
+  }
+  return { ...identity, ...git, files, scanStats: stats };
 }
 
 async function readFileForIndex(vscode, file) {
@@ -149,10 +269,13 @@ async function readFileForIndex(vscode, file) {
 module.exports = {
   MAX_FILE_SIZE,
   buildWorkspaceManifest,
+  createScanStats,
   estimateChunks,
   fileHash,
+  formatScanStats,
   isLikelyText,
   normalizePath,
+  probeWorkspaceRoots,
   readFileForIndex,
   shouldExclude,
   workspaceIdentity

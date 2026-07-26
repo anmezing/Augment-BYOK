@@ -43,7 +43,7 @@ function fixtureSource() {
   ].join("");
 }
 
-test("patchDisableAugmentOAuth: waits for sidecar restart and reloads retained webview", () => {
+test("patchDisableAugmentOAuth: reloads retained webview without restarting services", () => {
   withTempDir("augment-byok-oauth-", (dir) => {
     const filePath = path.join(dir, "extension.js");
     fs.writeFileSync(filePath, fixtureSource(), "utf8");
@@ -57,7 +57,8 @@ test("patchDisableAugmentOAuth: waits for sidecar restart and reloads retained w
     assert.ok(out1.includes("const P=r,H=++n;return i(P).then("));
     assert.ok(out1.includes("a(r);return l(`reload (${L})`)}"));
     assert.ok(out1.includes("async reloadWebview()"));
-    assert.ok(out1.includes('A.onDidChangeSession(async()=>{await c("auth session change"),await V.reloadWebview()})'));
+    assert.ok(out1.includes("A.onDidChangeSession(async()=>{await V.reloadWebview()})"));
+    assert.equal(out1.includes('c("auth session change")'), false);
     assert.equal(out1.includes("._oauthFlow.startFlow("), false);
     assert.doesNotThrow(() => new Function(out1));
 

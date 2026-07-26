@@ -1,7 +1,7 @@
 "use strict";
 
 const { info, warn } = require("../../infra/log");
-const { buildWorkspaceManifest, readFileForIndex } = require("./index-workspace");
+const { buildWorkspaceManifest, formatScanStats, readFileForIndex } = require("./index-workspace");
 const { completeIndexJob, createIndexJob, failIndexJob, uploadIndexBatch } = require("./index-relay");
 
 const INDEX_BATCH_SIZE = 20;
@@ -105,6 +105,11 @@ async function runIndexOnce() {
       }
     });
     if (!manifest) return null;
+    info(`LCE index scan: ${formatScanStats(manifest.scanStats)}`);
+    if (manifest.files.length === 0) {
+      showFinalStatus("$(info) LCE: no indexable files", 6000);
+      return null;
+    }
 
     showStatus(`$(sync~spin) LCE: comparing ${manifest.files.length} files...`);
     const created = await createIndexJob(connection, manifest, signal);

@@ -33,8 +33,7 @@ function patchDisableAugmentOAuth(extJsPath) {
     "patchDisableAugmentOAuth canRun useOAuth gate"
   );
 
-  // Authentication changes restart the sidecar. Preserve that Promise so the
-  // retained main-panel webview can be reloaded only after the new port exists.
+  // Preserve existing lifecycle Promises used by explicit reload commands.
   src = replaceOnce(
     src,
     "const P=r,H=++n;i(P).then(",
@@ -56,7 +55,7 @@ function patchDisableAugmentOAuth(extJsPath) {
   src = replaceOnce(
     src,
     'A.onDidChangeSession(()=>{c("auth session change")})',
-    'A.onDidChangeSession(async()=>{await c("auth session change"),await V.reloadWebview()})',
+    "A.onDidChangeSession(async()=>{await V.reloadWebview()})",
     "patchDisableAugmentOAuth auth session reload listener"
   );
 
